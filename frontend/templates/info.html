@@ -1,0 +1,715 @@
+{% extends "base.html" %}
+{% block title %}Info — USRG ROSBAG Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.info-page {
+    max-width: 820px;
+    margin: 40px auto;
+    padding: 0 24px 64px;
+}
+
+.info-hero {
+    text-align: center;
+    padding: 48px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+}
+
+.info-hero__title {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+}
+
+.info-hero__by {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+}
+
+.info-hero__tagline {
+    font-size: 15px;
+    color: var(--text-secondary);
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* ── Tab bar ── */
+.info-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 20px 0 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 48px;
+}
+
+.info-tab {
+    padding: 8px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    bottom: -2px;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.info-tab:hover {
+    color: var(--text-primary);
+}
+
+.info-tab.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    font-weight: 600;
+}
+
+.info-pane { display: none; }
+.info-pane.active { display: block; }
+
+/* ── Sections ── */
+.info-section {
+    margin-bottom: 48px;
+}
+
+.info-section__title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent-primary);
+    display: inline-block;
+}
+
+/* ── Usage steps ── */
+.steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.step__num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent-primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.step__body strong {
+    display: block;
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.step__body p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0;
+}
+
+code {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent-primary);
+}
+
+/* ── Code block ── */
+.code-block {
+    background: #1e293b;
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    margin: 10px 0 4px;
+    overflow-x: auto;
+}
+
+.code-block pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: #e2e8f0;
+    white-space: pre;
+}
+
+.code-block .comment { color: #64748b; }
+.code-block .cmd     { color: #93c5fd; }
+.code-block .flag    { color: #a5b4fc; }
+
+/* ── Tips / notes ── */
+.tips {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.tip {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.tip strong {
+    color: var(--text-primary);
+}
+
+.tip--warn {
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.tip--info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+
+/* ── Powered by ── */
+.powered-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+}
+
+.powered-item {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.powered-item__name {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.powered-item__role {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ── Formats table ── */
+.formats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.formats-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.formats-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    vertical-align: top;
+}
+
+.formats-table tr:last-child td { border-bottom: none; }
+
+.formats-table td:first-child {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+/* ── Ports table ── */
+.ports-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ports-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.ports-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    vertical-align: top;
+}
+
+.ports-table tr:last-child td { border-bottom: none; }
+
+.ports-table td:first-child {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    width: 80px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="info-page">
+
+  <!-- Hero -->
+  <div class="info-hero">
+    <div class="info-hero__title">USRG ROSBAG Manager</div>
+    <div class="info-hero__by">by JKP &nbsp;·&nbsp; Unmanned Systems Research Group</div>
+    <p class="info-hero__tagline">
+      Upload, convert, and visualise ROS bag files in the browser.
+      Powered by Rerun for 3D playback.
+    </p>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="info-tabs">
+    <button class="info-tab active" onclick="switchTab('usage', this)">Usage</button>
+    <button class="info-tab"        onclick="switchTab('setup', this)">Server Setup</button>
+  </div>
+
+  <!-- ══════════════ TAB: USAGE ══════════════ -->
+  <div id="pane-usage" class="info-pane active">
+
+    <div class="info-section">
+      <div class="info-section__title">How to use</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__body">
+            <strong>Upload a bag</strong>
+            <p>Click <strong>Upload</strong> in the top-right. Drag and drop a
+              <code>.bag</code>, <code>.mcap</code>, <code>.db3</code>, or <code>.zip</code>
+              file onto the drop zone (max {{ max_size_gb }} GB).
+              The file uploads immediately and conversion starts automatically.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__body">
+            <strong>Wait for conversion</strong>
+            <p>The progress bar tracks conversion steps: format detection →
+              MCAP conversion (if needed) → RRD export → metadata extraction → thumbnail.
+              ROS1 <code>.bag</code> files go through a ROS1 → MCAP → RRD pipeline.
+              MCAP files convert directly to RRD.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__body">
+            <strong>Publish with metadata</strong>
+            <p>After conversion a <strong>Publish</strong> form appears. Set the name,
+              description, and tags, then click <strong>Publish</strong>. You can also
+              leave it and edit later from the library.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">4</div>
+          <div class="step__body">
+            <strong>View in the browser</strong>
+            <p>Click any card in the library to open the Rerun web viewer.
+              Use the timeline at the bottom to scrub through time.
+              Switch between the <strong>3D</strong>, <strong>2D</strong>, and
+              <strong>Time series</strong> panels as needed.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">5</div>
+          <div class="step__body">
+            <strong>Download and run locally</strong>
+            <p>For large bags with lag in the browser, hover over a card and click
+              <strong>↓ RRD</strong> to download the recording. Then open it with the
+              Rerun desktop app:</p>
+            <p style="margin-top:6px"><code>rerun downloaded.rrd</code></p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">6</div>
+          <div class="step__body">
+            <strong>Open a local RRD without uploading</strong>
+            <p>Click <strong>Local RRD</strong> in the navbar. Drop any <code>.rrd</code>
+              file onto the page — it loads directly in the browser viewer with no
+              server transfer.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">7</div>
+          <div class="step__body">
+            <strong>Search and filter</strong>
+            <p>Type in the search bar to filter by name, description, or tag in real time.
+              Use the filter buttons below the navbar to show only
+              <em>Ready</em>, <em>Converting</em>, or <em>Error</em> bags.
+              Click a tag chip on a card to filter by that tag. Select multiple tags and
+              toggle <strong>Any / All</strong> to switch between OR and AND matching.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">Supported formats</div>
+      <table class="formats-table">
+        <thead>
+          <tr>
+            <th>Extension</th>
+            <th>Format</th>
+            <th>Conversion pipeline</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>.bag</td>
+            <td>ROS1 bag (Noetic)</td>
+            <td>ROS1 binary → deserialise → re-serialise CDR → MCAP → RRD</td>
+          </tr>
+          <tr>
+            <td>.mcap</td>
+            <td>MCAP (ROS2 / standalone)</td>
+            <td>MCAP → RRD (direct)</td>
+          </tr>
+          <tr>
+            <td>.db3</td>
+            <td>ROS2 SQLite bag</td>
+            <td>SQLite → MCAP → RRD</td>
+          </tr>
+          <tr>
+            <td>.zip</td>
+            <td>Zipped ROS2 bag directory</td>
+            <td>Extract → detect format → MCAP or SQLite pipeline</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">3D view tips</div>
+      <div class="tips">
+        <div class="tip">
+          <strong>No transform path / empty 3D view</strong><br>
+          The 3D view requires a TF frame tree. Click the 3D panel, then in the
+          <strong>Blueprint</strong> panel on the right find <strong>Space origin</strong>
+          and type your root frame (e.g. <code>map</code>, <code>odom</code>, or <code>world</code>).
+          Entities attached to that frame or its children will appear.
+        </div>
+        <div class="tip">
+          <strong>Sensors missing in 3D even after setting origin</strong><br>
+          The bag is likely missing <code>/tf_static</code>, which carries fixed
+          sensor-to-body transforms (camera extrinsics, lidar mount, etc.).
+          Without it, Rerun cannot position those sensors in the world frame.
+          Re-record the bag with <code>/tf_static</code> included, or use the
+          2D / time-series views instead.
+        </div>
+        <div class="tip">
+          <strong>Custom message types not shown</strong><br>
+          Rerun natively visualises standard <code>sensor_msgs</code>,
+          <code>geometry_msgs</code>, and <code>tf2_msgs</code> types.
+          Custom types (e.g. <code>mavros_msgs</code>, <code>apriltag_msgs</code>)
+          are stored in the recording but not auto-visualised — they will appear
+          as raw data in the streams panel.
+        </div>
+        <div class="tip">
+          <strong>Lag in browser viewer</strong><br>
+          Download the <code>.rrd</code> file and open it with the Rerun desktop app
+          (<code>rerun file.rrd</code>) for full native performance.
+          The desktop app handles large point clouds and long recordings much better
+          than the browser.
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">Powered by</div>
+      <div class="powered-grid">
+        <div class="powered-item">
+          <span class="powered-item__name">Rerun {{ rerun_version }}</span>
+          <span class="powered-item__role">3D / time-series visualisation</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">rosbags</span>
+          <span class="powered-item__role">ROS1 &amp; ROS2 bag I/O and conversion</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">FastAPI</span>
+          <span class="powered-item__role">Web backend &amp; REST API</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">Celery + Redis</span>
+          <span class="powered-item__role">Background conversion task queue</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">PostgreSQL</span>
+          <span class="powered-item__role">Bag metadata &amp; job state</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">HTMX</span>
+          <span class="powered-item__role">Real-time UI updates</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">nginx</span>
+          <span class="powered-item__role">Reverse proxy &amp; static files</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">Docker</span>
+          <span class="powered-item__role">Containerisation &amp; deployment</span>
+        </div>
+      </div>
+    </div>
+
+  </div>{# /pane-usage #}
+
+  <!-- ══════════════ TAB: SETUP ══════════════ -->
+  <div id="pane-setup" class="info-pane">
+
+    <div class="info-section">
+      <div class="info-section__title">Prerequisites</div>
+      <div class="tips">
+        <div class="tip">
+          <strong>Docker Engine 20.10+</strong> and the <strong>Docker Compose v2</strong>
+          plugin (<code>docker compose</code>) must be installed on the host machine.
+          Docker Desktop for Mac/Windows bundles both.
+          On Linux: <code>sudo apt install docker.io docker-compose-v2</code>
+          or follow the official Docker Engine install guide.
+        </div>
+        <div class="tip">
+          <strong>Ports 80</strong> (web UI) and <strong>5555</strong> (Flower task monitor)
+          must be free on the host. If port 80 is in use, change the nginx port mapping
+          in <code>docker-compose.yml</code>: e.g. <code>"8080:80"</code>.
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">First-time setup</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__body">
+            <strong>Clone the repository</strong>
+            <div class="code-block"><pre><span class="cmd">git clone</span> &lt;repo-url&gt;
+<span class="cmd">cd</span> rosbag-viewer</pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__body">
+            <strong>Create the environment file</strong>
+            <p>Copy the example and edit the values:</p>
+            <div class="code-block"><pre><span class="cmd">cp</span> .env.example .env
+<span class="cmd">nano</span> .env   <span class="comment"># or any editor</span></pre></div>
+            <p style="margin-top:8px">Required values to set:</p>
+            <div class="tips" style="margin-top:8px">
+              <div class="tip">
+                <code>POSTGRES_PASSWORD</code> — database password (any strong string)<br>
+                <code>SECRET_KEY</code> — session signing key (generate with
+                <code>openssl rand -hex 32</code>)<br>
+                <code>INITIAL_ADMIN_PASSWORD</code> — password for the first admin account<br>
+                <code>DATA_DIR</code> — host path where uploaded bags and RRDs are stored
+                (default: <code>./data</code>)
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__body">
+            <strong>Build images and start all services</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose up</span> <span class="flag">--build -d</span></pre></div>
+            <p>On first run Docker pulls base images, builds the backend/worker/nginx
+               images, runs database migrations, and creates the initial admin user.
+               This takes 2–5 minutes. The server is ready when
+               <code>docker compose ps</code> shows all services as <em>healthy</em>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">4</div>
+          <div class="step__body">
+            <strong>Open the web UI</strong>
+            <p>Navigate to <code>http://&lt;host-ip&gt;</code> in a browser.
+               Log in with <code>INITIAL_ADMIN_USERNAME</code> (default: <code>admin</code>)
+               and the password you set in <code>.env</code>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">Daily operation</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">▶</div>
+          <div class="step__body">
+            <strong>Start the server</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose up -d</span></pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">■</div>
+          <div class="step__body">
+            <strong>Stop the server</strong>
+            <p>Stops all containers but keeps data volumes intact:</p>
+            <div class="code-block"><pre><span class="cmd">docker compose down</span></pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">↺</div>
+          <div class="step__body">
+            <strong>Restart a single service</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose restart</span> backend
+<span class="cmd">docker compose restart</span> worker</pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">≡</div>
+          <div class="step__body">
+            <strong>View logs</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose logs -f</span>             <span class="comment"># all services</span>
+<span class="cmd">docker compose logs -f</span> backend    <span class="comment"># API only</span>
+<span class="cmd">docker compose logs -f</span> worker     <span class="comment"># conversion worker only</span></pre></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">Updating the server</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__body">
+            <strong>Pull latest code</strong>
+            <div class="code-block"><pre><span class="cmd">git pull</span></pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__body">
+            <strong>Rebuild changed images</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose build</span> backend worker</pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__body">
+            <strong>Restart with new images</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose up -d</span></pre></div>
+            <p>Compose replaces only the containers whose image changed.
+               Database migrations run automatically on backend startup.</p>
+          </div>
+        </div>
+      </div>
+      <div class="tips" style="margin-top:16px">
+        <div class="tip tip--warn">
+          <strong>Static file changes</strong> (CSS, JS, templates) do not require a
+          rebuild — just a hard-refresh in the browser (<code>Ctrl+Shift+R</code>).
+          Only Python code or dependency changes need <code>docker compose build</code>.
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">Data &amp; backups</div>
+      <div class="tips">
+        <div class="tip">
+          <strong>Uploaded bags, RRD files, thumbnails</strong> are stored on the host
+          at the path set by <code>DATA_DIR</code> in <code>.env</code> (default
+          <code>./data/</code>). Back up this directory to preserve all recordings.
+        </div>
+        <div class="tip">
+          <strong>PostgreSQL metadata</strong> (bag names, tags, descriptions, user
+          accounts) lives in the <code>postgres_data</code> Docker volume. Export with:
+          <div class="code-block" style="margin-top:8px"><pre><span class="cmd">docker compose exec</span> postgres pg_dump <span class="flag">-U</span> rosbag rosbag_viewer <span class="flag">&gt;</span> backup.sql</pre></div>
+        </div>
+        <div class="tip tip--warn">
+          <strong>Removing all data</strong> — to wipe the database volume completely:
+          <div class="code-block" style="margin-top:8px"><pre><span class="cmd">docker compose down -v</span>   <span class="comment"># WARNING: deletes postgres_data volume</span></pre></div>
+          Bag files in <code>DATA_DIR</code> are on the host and are not affected by
+          <code>-v</code>; delete them manually if needed.
+        </div>
+      </div>
+    </div>
+
+    <div class="info-section">
+      <div class="info-section__title">Exposed ports</div>
+      <table class="ports-table">
+        <thead>
+          <tr>
+            <th>Port</th>
+            <th>Service</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>:80</td>
+            <td>nginx (web UI)</td>
+            <td>Main entry point — serves the app and proxies API calls to the backend</td>
+          </tr>
+          <tr>
+            <td>:5555</td>
+            <td>Flower</td>
+            <td>Celery task monitor — shows queued and running conversion jobs</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>{# /pane-setup #}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name, btn) {
+    document.querySelectorAll('.info-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.info-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('pane-' + name).classList.add('active');
+    btn.classList.add('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+services:
+  backend:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+      - ./frontend:/app/frontend
+      - bag_data:/data
+
+  worker:
+    command: celery -A worker.celery_app worker --loglevel=debug --concurrency=1
+    volumes:
+      - ./backend:/app
+      - bag_data:/data
+    environment:
+      CELERY_TASK_ALWAYS_EAGER: "false"

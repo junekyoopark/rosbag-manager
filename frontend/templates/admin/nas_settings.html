@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% block title %}NAS Settings — USRG ROSBAG Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.settings-page {
+    max-width: 600px;
+    margin: 40px auto;
+    padding: 0 24px 64px;
+}
+
+.settings-page h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.settings-page__sub {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 36px;
+    line-height: 1.6;
+}
+
+.settings-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.settings-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+}
+
+.settings-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    line-height: 1.5;
+}
+
+.settings-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+}
+
+.settings-input:focus {
+    border-color: var(--accent-primary);
+    background: var(--bg-surface);
+}
+
+.settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.settings-toggle input[type=checkbox] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.settings-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0;
+}
+
+.settings-footer {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+#test-result {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+
+.test-ok   { background: #f0fdf4; color: #15803d; }
+.test-fail { background: #fef2f2; color: var(--accent-error); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <h1>NAS Settings</h1>
+    <p class="settings-page__sub">
+        Configure a Synology NAS destination for bag archiving. Users with the
+        <strong>NAS upload</strong> privilege (set in User Management) can send
+        any ready bag to the NAS on demand.<br><br>
+        Use the NAS's <strong>direct HTTPS URL</strong> — the local network address
+        (<code>https://192.168.x.x:5001</code>), a DDNS address, or Synology QuickConnect
+        host resolved via <code>ping [id].quickconnect.to</code>.
+        QuickConnect relay URLs do not support direct API calls.
+    </p>
+
+    <div class="settings-card">
+        <div class="settings-field">
+            <label class="settings-label">Enable NAS upload</label>
+            <label class="settings-toggle">
+                <input type="checkbox" id="nas-enabled" {{ 'checked' if config and config.enabled else '' }}>
+                Allow users with NAS upload privilege to send bags to NAS
+            </label>
+        </div>
+
+        <hr class="settings-divider">
+
+        <div class="settings-field">
+            <label class="settings-label">DSM Base URL</label>
+            <input class="settings-input" id="nas-url" type="url"
+                   value="{{ config.dsm_url or '' if config else '' }}"
+                   placeholder="https://192.168.1.100:5001">
+            <span class="settings-hint">
+                The base URL of your Synology DSM — no trailing slash.
+                HTTPS port 5001 (default) or 443 if configured.
+            </span>
+        </div>
+
+        <div class="settings-field">
+            <label class="settings-label">Username</label>
+            <input class="settings-input" id="nas-user" type="text"
+                   value="{{ config.username or '' if config else '' }}"
+                   placeholder="admin" autocomplete="off">
+        </div>
+
+        <div class="settings-field">
+            <label class="settings-label">Password</label>
+            <input class="settings-input" id="nas-pass" type="password"
+                   placeholder="{{ '●●●●●● (saved — leave blank to keep)' if config and config.encrypted_password else 'Enter password' }}"
+                   autocomplete="new-password">
+            <span class="settings-hint">Leave blank to keep the existing password.</span>
+        </div>
+
+        <div class="settings-field">
+            <label class="settings-label">Upload folder on NAS</label>
+            <div style="display:flex;gap:6px;align-items:center">
+                <input class="settings-input" id="nas-path" type="text"
+                       value="{{ config.upload_path or '/rosbags' if config else '/rosbags' }}"
+                       placeholder="/share/subfolder" style="flex:1">
+                <button class="btn btn--secondary btn--sm" onclick="browseNasFolders()"
+                        id="browse-btn" style="white-space:nowrap">Browse…</button>
+            </div>
+            <span class="settings-hint">
+                Must be an existing shared folder path (e.g. <code>/homes/admin/rosbags</code>).
+                Subdirectories are created automatically but the top-level share must already exist on the NAS.
+                Click <strong>Browse…</strong> to pick from available shares (requires saved credentials).
+            </span>
+            <div id="folder-list" style="display:none;margin-top:8px;
+                 border:1px solid var(--border);border-radius:var(--radius-md);
+                 background:var(--bg-elevated);max-height:180px;overflow-y:auto"></div>
+        </div>
+
+        <div class="settings-field">
+            <label class="settings-label">SSL verification</label>
+            <label class="settings-toggle">
+                <input type="checkbox" id="nas-verify-ssl"
+                       {{ 'checked' if not config or config.verify_ssl else '' }}>
+                Verify SSL certificate (uncheck for self-signed certs on LAN)
+            </label>
+        </div>
+
+        <hr class="settings-divider">
+
+        <div class="settings-footer">
+            <button class="btn btn--primary" onclick="saveNasConfig()">Save</button>
+            <button class="btn btn--secondary" onclick="testNasConnection()">Test connection</button>
+            <span id="test-result" style="display:none"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function saveNasConfig() {
+    const body = {
+        enabled:    document.getElementById('nas-enabled').checked,
+        dsm_url:    document.getElementById('nas-url').value.trim(),
+        username:   document.getElementById('nas-user').value.trim(),
+        upload_path: document.getElementById('nas-path').value.trim() || '/rosbags',
+        verify_ssl: document.getElementById('nas-verify-ssl').checked,
+    };
+    const pass = document.getElementById('nas-pass').value;
+    if (pass) body.password = pass;
+
+    const r = await fetch('/nas/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (r.ok) {
+        showResult('✓ Saved', true);
+    } else {
+        const t = await r.text();
+        showResult('Error: ' + t, false);
+    }
+}
+
+async function testNasConnection() {
+    showResult('Testing…', null);
+    const r = await fetch('/nas/test', { method: 'POST' });
+    const data = await r.json();
+    if (r.ok) {
+        showResult('✓ ' + data.message, true);
+    } else {
+        showResult('✗ ' + (data.detail || 'Failed'), false);
+    }
+}
+
+function showResult(msg, ok) {
+    const el = document.getElementById('test-result');
+    el.style.display = 'inline';
+    el.textContent = msg;
+    el.className = ok === true ? 'test-ok' : ok === false ? 'test-fail' : '';
+}
+
+async function browseNasFolders() {
+    const btn = document.getElementById('browse-btn');
+    const listEl = document.getElementById('folder-list');
+    btn.disabled = true;
+    btn.textContent = 'Loading…';
+    listEl.style.display = 'none';
+    listEl.innerHTML = '';
+
+    try {
+        const r = await fetch('/nas/folders');
+        if (!r.ok) {
+            const d = await r.json().catch(() => ({}));
+            showResult('✗ ' + (d.detail || 'Could not fetch folders'), false);
+            return;
+        }
+        const { shares } = await r.json();
+        if (!shares.length) {
+            listEl.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--text-muted)">No shares found</div>';
+            listEl.style.display = 'block';
+            return;
+        }
+        shares.forEach(path => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.textContent = path;
+            row.style.cssText = 'display:block;width:100%;text-align:left;padding:8px 14px;' +
+                'font-size:13px;color:var(--text-primary);background:none;border:none;' +
+                'border-bottom:1px solid var(--border);cursor:pointer;font-family:inherit';
+            row.onmouseenter = () => row.style.background = 'var(--bg-surface)';
+            row.onmouseleave = () => row.style.background = 'none';
+            row.onclick = () => {
+                document.getElementById('nas-path').value = path;
+                listEl.style.display = 'none';
+            };
+            listEl.appendChild(row);
+        });
+        listEl.style.display = 'block';
+    } catch (e) {
+        showResult('✗ ' + e.message, false);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Browse…';
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const listEl = document.getElementById('folder-list');
+    if (listEl && !listEl.contains(e.target) && e.target.id !== 'browse-btn') {
+        listEl.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

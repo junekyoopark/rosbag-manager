@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ bag.name }} — USRG ROSBAG Manager</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <script src="/static/vendor/htmx/htmx.min.js" defer></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .viewer-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px;
+            height: 38px;
+            box-sizing: border-box;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .viewer-bar__back {
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .viewer-bar__back:hover { color: var(--text-primary); }
+
+        .viewer-bar__title {
+            flex: 1;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #rerun-container {
+            width: 100%;
+            height: calc(100vh - 38px);
+        }
+    </style>
+</head>
+<body>
+<div class="viewer-bar">
+    <a href="/" class="viewer-bar__back">← Library</a>
+    <span class="viewer-bar__title">{{ bag.name }}</span>
+    {% if bag.rrd_path %}
+    <a href="/rrd/{{ bag.id }}.rrd" download class="btn btn--secondary btn--sm">↓ RRD</a>
+    {% endif %}
+    <a href="/api/bags/{{ bag.id }}/source" class="btn btn--secondary btn--sm">↓ Bag</a>
+    <button class="btn btn--secondary btn--sm" id="help-btn" onclick="document.getElementById('help-panel').classList.toggle('hidden')">? 3D Help</button>
+    {% set _u = request.state.current_user if request.state is defined else none %}
+    {% if _u and (_u.role == 'admin' or _u.can_upload_to_nas) and bag.status == 'ready' %}
+    <button class="btn btn--secondary btn--sm" id="viewer-nas-btn"
+            onclick="viewerSendToNas()">→ NAS</button>
+    {% endif %}
+    {% if _u and _u.role == 'admin' %}
+    <button class="btn btn--secondary btn--sm"
+            onclick="openViewerEditPanel()">✎ Edit</button>
+    {% if bag.status == 'ready' and not bag.published %}
+    <button class="btn btn--primary btn--sm" id="viewer-publish-btn"
+            onclick="viewerPublish()">Publish</button>
+    {% endif %}
+    <button class="btn btn--danger btn--sm"
+            hx-delete="/api/bags/{{ bag.id }}"
+            hx-confirm="Delete this bag and all associated files?"
+            hx-on::after-request="window.location='/'">Delete</button>
+    {% endif %}
+</div>
+
+<div id="help-panel" class="hidden" style="
+    position:fixed; top:44px; right:12px; z-index:200;
+    background:var(--bg-surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:16px 20px; width:340px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.12); font-size:13px;
+    color:var(--text-primary); line-height:1.6;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+    <strong>Fixing the 3D view</strong>
+    <button onclick="this.closest('#help-panel').classList.add('hidden')"
+            style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted)">✕</button>
+  </div>
+  <p style="color:var(--text-secondary);margin-bottom:8px">
+    <em>"No transform path"</em> means the 3D view's <strong>origin frame</strong> doesn't
+    match the frames in your TF tree.
+  </p>
+  <ol style="padding-left:18px;color:var(--text-secondary);display:flex;flex-direction:column;gap:6px">
+    <li>Click the <strong>3D space view</strong> panel inside Rerun to select it.</li>
+    <li>In the <strong>Blueprint</strong> panel on the right, find <strong>Space origin</strong>.</li>
+    <li>Type the <strong>root frame</strong> of your TF tree — usually <code style="background:var(--bg-elevated);padding:1px 4px;border-radius:3px">map</code>,
+        <code style="background:var(--bg-elevated);padding:1px 4px;border-radius:3px">odom</code>, or
+        <code style="background:var(--bg-elevated);padding:1px 4px;border-radius:3px">world</code>.</li>
+    <li>Entities attached to that frame or any child frame will now appear.</li>
+  </ol>
+  <p style="margin-top:10px;color:var(--text-muted);font-size:11px">
+    Tip: if sensor data still doesn't appear, the bag is likely missing
+    <code style="background:var(--bg-elevated);padding:1px 4px;border-radius:3px">/tf_static</code>
+    which defines fixed sensor-to-body transforms.
+  </p>
+</div>
+
+<!-- Viewer edit panel -->
+<div id="viewer-edit-panel" class="hidden" style="
+    position:fixed; top:44px; right:12px; z-index:200;
+    background:var(--bg-surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:20px; width:320px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.12); display:flex; flex-direction:column; gap:12px;">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <strong style="font-size:14px;color:var(--text-primary)">Edit metadata</strong>
+    <button onclick="document.getElementById('viewer-edit-panel').classList.add('hidden')"
+            style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--text-muted)">✕</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <label style="font-size:11px;font-weight:600;color:var(--text-secondary)">Name</label>
+    <input id="vedit-name" class="modal__input" type="text" value="{{ bag.name | e }}">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <label style="font-size:11px;font-weight:600;color:var(--text-secondary)">Description</label>
+    <input id="vedit-desc" class="modal__input" type="text" value="{{ bag.description or '' | e }}" placeholder="Optional…">
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <label style="font-size:11px;font-weight:600;color:var(--text-secondary)">Tags</label>
+    <div class="tags-input" id="vedit-tags-container"
+         style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:4px 8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:36px;cursor:text"
+         onclick="document.getElementById('vedit-tag-input').focus()">
+        {% for tag in (bag.tags or []) %}
+        <span class="tag-chip" data-tag="{{ tag | e }}" style="display:inline-flex;align-items:center;gap:3px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px">
+            {{ tag }}<span class="tag-chip__remove" style="cursor:pointer;margin-left:2px">×</span>
+        </span>
+        {% endfor %}
+        <input type="text" id="vedit-tag-input"
+               style="border:none;background:none;outline:none;font-size:13px;color:var(--text-primary);min-width:80px;flex:1;padding:2px 0;font-family:inherit"
+               placeholder="Add tag…">
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn--secondary btn--sm"
+            onclick="document.getElementById('viewer-edit-panel').classList.add('hidden')">Cancel</button>
+    <button class="btn btn--primary btn--sm" id="vedit-save-btn" onclick="saveViewerEdit()">Save</button>
+  </div>
+</div>
+
+<div id="rerun-container">
+    {% if bag.status != 'ready' or not bag.rrd_url %}
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:16px;color:var(--text-secondary);">
+        {% if bag.status == 'converting' %}
+        <div class="spinner"></div>
+        <p>Conversion in progress…</p>
+        {% elif bag.status == 'error' %}
+        <p style="color:var(--accent-primary)">Conversion failed</p>
+        <p style="font-size:12px;color:var(--text-muted)">{{ bag.job.error_message if bag.job else '' }}</p>
+        <button class="btn btn--secondary"
+                hx-post="/api/bags/{{ bag.id }}/reconvert"
+                hx-on::after-request="window.location.reload()">Retry</button>
+        {% else %}
+        <p>Recording not available</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Rebuild URL using current host so remote clients don't get localhost
+const _rrdStored = "{{ bag.rrd_url or '' }}";
+const rrdUrl = _rrdStored
+    ? window.location.origin + '/rrd/' + _rrdStored.split('/rrd/').pop()
+    : '';
+</script>
+<script src="/static/js/viewer.js"></script>
+<script>
+const _bagId = "{{ bag.id }}";
+let _veditTags = {{ (bag.tags or []) | tojson }};
+
+function openViewerEditPanel() {
+    document.getElementById('viewer-edit-panel').classList.toggle('hidden');
+}
+
+// Wire up existing chips in the panel
+document.querySelectorAll('#vedit-tags-container .tag-chip').forEach(chip => {
+    chip.querySelector('.tag-chip__remove').addEventListener('click', () => {
+        _veditTags = _veditTags.filter(t => t !== chip.dataset.tag);
+        chip.remove();
+    });
+});
+
+document.getElementById('vedit-tag-input')?.addEventListener('keydown', (e) => {
+    const input = e.target;
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = input.value.trim();
+        if (val && !_veditTags.includes(val)) {
+            _veditTags.push(val);
+            const container = document.getElementById('vedit-tags-container');
+            const chip = document.createElement('span');
+            chip.className = 'tag-chip';
+            chip.dataset.tag = val;
+            chip.style.cssText = 'display:inline-flex;align-items:center;gap:3px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:11px';
+            chip.innerHTML = `${val}<span class="tag-chip__remove" style="cursor:pointer;margin-left:2px">×</span>`;
+            chip.querySelector('.tag-chip__remove').addEventListener('click', () => {
+                _veditTags = _veditTags.filter(t => t !== val);
+                chip.remove();
+            });
+            container.insertBefore(chip, input);
+        }
+        input.value = '';
+    }
+    if (e.key === 'Backspace' && input.value === '' && _veditTags.length) {
+        const last = _veditTags.pop();
+        document.querySelector(`#vedit-tags-container [data-tag="${CSS.escape(last)}"]`)?.remove();
+    }
+});
+
+async function saveViewerEdit() {
+    const btn = document.getElementById('vedit-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    const name = document.getElementById('vedit-name').value.trim();
+    const desc = document.getElementById('vedit-desc').value.trim() || null;
+    try {
+        const r = await fetch(`/api/bags/${_bagId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description: desc, tags: _veditTags }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        document.querySelector('.viewer-bar__title').textContent = name;
+        document.getElementById('viewer-edit-panel').classList.add('hidden');
+    } catch {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save';
+}
+
+let _nasPathCache = null;
+
+async function viewerSendToNas() {
+    const btn = document.getElementById('viewer-nas-btn');
+    if (!btn) return;
+
+    // Fetch default path once
+    if (_nasPathCache === null) {
+        try {
+            const cfg = await fetch('/nas/config').then(r => r.json());
+            _nasPathCache = cfg.upload_path || '/rosbags';
+        } catch { _nasPathCache = '/rosbags'; }
+    }
+
+    // Show inline path picker popover
+    let existing = document.getElementById('viewer-nas-popover');
+    if (existing) { existing.remove(); return; }
+
+    const popover = document.createElement('div');
+    popover.id = 'viewer-nas-popover';
+    popover.style.cssText = `
+        position:fixed; z-index:300;
+        background:var(--bg-surface); border:1px solid var(--border);
+        border-radius:var(--radius-lg); padding:14px 16px; width:300px;
+        box-shadow:0 8px 24px rgba(0,0,0,0.18); display:flex; flex-direction:column; gap:10px;
+    `;
+    const rect = btn.getBoundingClientRect();
+    popover.style.top = (rect.bottom + 6) + 'px';
+    popover.style.left = Math.max(8, rect.right - 300) + 'px';
+    popover.innerHTML = `
+        <div style="font-size:13px;font-weight:600;color:var(--text-primary)">NAS destination folder</div>
+        <input id="viewer-nas-path" class="modal__input" type="text"
+               value="${_nasPathCache}" spellcheck="false" style="font-size:13px">
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+            <button class="btn btn--secondary btn--sm" id="viewer-nas-cancel">Cancel</button>
+            <button class="btn btn--primary btn--sm" id="viewer-nas-confirm">Send →</button>
+        </div>
+    `;
+    document.body.appendChild(popover);
+
+    const pathInput = popover.querySelector('#viewer-nas-path');
+    setTimeout(() => pathInput.select(), 0);
+
+    const dismiss = () => popover.remove();
+    popover.querySelector('#viewer-nas-cancel').onclick = dismiss;
+
+    const doSend = async () => {
+        const destPath = pathInput.value.trim() || _nasPathCache;
+        dismiss();
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        try {
+            const r = await fetch(`/nas/bags/${_bagId}/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dest_path: destPath }),
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({ detail: 'Failed' }));
+                btn.textContent = '✗ ' + (err.detail || 'Failed');
+                btn.disabled = false;
+                return;
+            }
+            const { task_id } = await r.json();
+            const es = new EventSource(`/nas/task/${task_id}/stream`);
+            es.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+                btn.textContent = data.step || data.state;
+                if (data.state === 'SUCCESS') {
+                    es.close(); btn.textContent = '✓ On NAS'; btn.disabled = false;
+                } else if (data.state === 'FAILURE') {
+                    es.close(); btn.textContent = '✗ Failed'; btn.disabled = false;
+                }
+            };
+            es.onerror = () => { es.close(); btn.textContent = '✗ Lost'; btn.disabled = false; };
+        } catch {
+            btn.disabled = false; btn.textContent = '→ NAS';
+        }
+    };
+
+    popover.querySelector('#viewer-nas-confirm').onclick = doSend;
+    pathInput.onkeydown = (e) => {
+        if (e.key === 'Enter') doSend();
+        if (e.key === 'Escape') dismiss();
+    };
+
+    setTimeout(() => {
+        document.addEventListener('click', function outsideClick(e) {
+            if (!popover.contains(e.target) && e.target !== btn) {
+                dismiss();
+                document.removeEventListener('click', outsideClick);
+            }
+        });
+    }, 0);
+}
+
+async function viewerPublish() {
+    const btn = document.getElementById('viewer-publish-btn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = 'Publishing…';
+    try {
+        const r = await fetch(`/api/bags/${_bagId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ published: true }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        btn.textContent = '✓ Published';
+        btn.className = 'btn btn--secondary btn--sm';
+    } catch {
+        btn.disabled = false;
+        btn.textContent = 'Publish';
+    }
+}
+</script>
+</body>
+</html>

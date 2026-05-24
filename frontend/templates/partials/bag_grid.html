@@ -1,0 +1,9 @@
+{% if bags %}
+    {% for bag in bags %}
+        {% include "partials/bag_card.html" %}
+    {% endfor %}
+{% else %}
+    <div class="bag-grid--empty" style="grid-column:1/-1">
+        <p>No bags found.</p>
+    </div>
+{% endif %}

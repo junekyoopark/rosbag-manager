@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local RRD Viewer</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        html, body {
+            margin: 0; padding: 0; height: 100%; overflow: hidden;
+            background: #000;
+        }
+
+        .viewer-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px;
+            height: 38px;
+            box-sizing: border-box;
+            background: var(--bg-surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .viewer-bar__back {
+            color: var(--text-secondary);
+            font-size: 13px;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .viewer-bar__back:hover { color: var(--text-primary); }
+
+        .viewer-bar__title {
+            flex: 1;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #rerun-container {
+            width: 100%;
+            height: calc(100vh - 38px);
+            position: relative;
+        }
+
+        /* Drop overlay — shown until a file is loaded */
+        #drop-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: var(--bg-base);
+            color: var(--text-secondary);
+            z-index: 10;
+            transition: background 0.2s;
+        }
+
+        #drop-overlay.drag-over {
+            background: var(--bg-elevated);
+            border: 3px dashed var(--accent-primary);
+        }
+
+        #drop-overlay svg { color: var(--text-muted); }
+
+        #drop-overlay p { font-size: 15px; font-weight: 500; }
+
+        #drop-overlay small { font-size: 12px; color: var(--text-muted); }
+
+        #file-input { display: none; }
+
+        #error-msg {
+            display: none;
+            color: var(--accent-error);
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+<div class="viewer-bar">
+    <a href="/" class="viewer-bar__back">← Library</a>
+    <span class="viewer-bar__title" id="file-label">Local RRD Viewer</span>
+    <input type="file" id="file-input" accept=".rrd">
+    <button class="btn btn--secondary btn--sm" onclick="document.getElementById('file-input').click()">
+        Open file…
+    </button>
+</div>
+
+<div id="rerun-container">
+    <div id="drop-overlay">
+        <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p>Drop a .rrd file here</p>
+        <small>or click <strong>Open file…</strong> above</small>
+        <p id="error-msg"></p>
+    </div>
+</div>
+
+<script>
+const overlay   = document.getElementById('drop-overlay');
+const container = document.getElementById('rerun-container');
+const fileInput = document.getElementById('file-input');
+const fileLabel = document.getElementById('file-label');
+const errorMsg  = document.getElementById('error-msg');
+
+let _viewer     = null;   // WebViewer instance, kept after first start
+let _activeBlobUrl = null; // keep alive until viewer is replaced
+
+// ── Drag-and-drop onto the overlay ────────────────────────────
+overlay.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    overlay.classList.add('drag-over');
+});
+overlay.addEventListener('dragleave', () => overlay.classList.remove('drag-over'));
+overlay.addEventListener('drop', (e) => {
+    e.preventDefault();
+    overlay.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+});
+overlay.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) loadFile(fileInput.files[0]);
+    fileInput.value = '';
+});
+
+// ── Load file into Rerun viewer ───────────────────────────────
+async function loadFile(file) {
+    if (!file.name.endsWith('.rrd')) {
+        showError('Only .rrd files are supported.');
+        return;
+    }
+
+    errorMsg.style.display = 'none';
+    fileLabel.textContent = file.name;
+
+    // Read file bytes before touching the viewer so any read error surfaces early
+    let bytes;
+    try {
+        bytes = new Uint8Array(await file.arrayBuffer());
+    } catch (err) {
+        showError('Could not read file: ' + err.message);
+        return;
+    }
+
+    try {
+        const { WebViewer } = await import('/static/vendor/rerun/index.js');
+
+        if (!_viewer) {
+            // First load — start the viewer with no URL, then push bytes via channel
+            overlay.style.display = 'none';
+            _viewer = new WebViewer();
+            await _viewer.start(null, container, {
+                width: '100%',
+                height: '100%',
+                hide_welcome_screen: true,
+            });
+        } else {
+            overlay.style.display = 'none';
+        }
+
+        // Wait for viewer ready (start() usually resolves when ready, but be defensive)
+        if (!_viewer.ready) {
+            await new Promise((resolve, reject) => {
+                const timer = setTimeout(() => reject(new Error('Viewer ready timeout')), 10000);
+                _viewer.once('ready', () => { clearTimeout(timer); resolve(); });
+            });
+        }
+
+        // Push file bytes through a named channel
+        const channel = _viewer.open_channel(file.name);
+
+        // Channel transitions to "ready" asynchronously; poll briefly
+        const deadline = Date.now() + 5000;
+        while (!channel.ready && Date.now() < deadline) {
+            await new Promise(r => setTimeout(r, 50));
+        }
+        if (!channel.ready) throw new Error('Channel did not become ready');
+
+        channel.send_rrd(bytes);
+        channel.close();
+
+    } catch (err) {
+        _viewer = null;
+        overlay.style.display = 'flex';
+        showError('Failed to load: ' + err.message);
+        console.error(err);
+    }
+}
+
+function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.style.display = 'block';
+}
+</script>
+</body>
+</html>

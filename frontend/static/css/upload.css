@@ -1,0 +1,233 @@
+/* ── Upload page ── */
+.upload-page {
+    max-width: 680px;
+    margin: 40px auto;
+    padding: 0 24px;
+}
+
+.upload-page h1 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 24px;
+}
+
+/* ── Drop zone ── */
+.dropzone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--bg-surface);
+}
+
+.dropzone.drag-over,
+.dropzone:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-elevated);
+}
+
+.dropzone__icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+}
+
+.dropzone__text {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.dropzone__sub {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.dropzone input[type="file"] {
+    display: none;
+}
+
+/* ── Form fields ── */
+.upload-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 24px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-field label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.form-field input,
+.form-field textarea {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    padding: 8px 12px;
+    font-family: var(--font-sans);
+    transition: border-color 0.15s;
+    outline: none;
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+    border-color: var(--accent-primary);
+}
+
+/* Tag input */
+.tags-input {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 6px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    min-height: 38px;
+    cursor: text;
+}
+
+.tags-input:focus-within {
+    border-color: var(--accent-primary);
+}
+
+.tags-input input {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+    min-width: 100px;
+    flex: 1;
+    padding: 0;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.tag-chip__remove {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+}
+
+.tag-chip__remove:hover { color: var(--accent-primary); }
+
+/* ── Upload queue ── */
+.upload-queue {
+    margin-top: 32px;
+}
+
+.upload-queue h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.queue-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+}
+
+.queue-item__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+}
+
+.queue-item__name {
+    color: var(--text-primary);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.queue-item__status {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    margin-left: 12px;
+}
+
+.queue-item__step {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.queue-item--done .queue-item__name { color: var(--accent-green); }
+.queue-item--error .queue-item__name { color: var(--accent-error); }
+
+/* ── Publish form ── */
+.publish-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.publish-form__input {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+    font-family: var(--font-sans);
+    transition: border-color 0.15s;
+}
+
+.publish-form__input:focus {
+    border-color: var(--accent-primary);
+}
+
+.publish-form__actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.publish-success {
+    font-size: 12px;
+    color: var(--accent-green);
+}

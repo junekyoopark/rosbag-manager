@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}User Management — USRG ROSBAG Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.admin-page {
+    max-width: 860px;
+    margin: 40px auto;
+    padding: 0 24px 64px;
+}
+
+.admin-page h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 32px;
+}
+
+.admin-section {
+    margin-bottom: 40px;
+}
+
+.admin-section__title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.users-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+
+.users-table td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    vertical-align: middle;
+}
+
+.users-table tr:last-child td {
+    border-bottom: none;
+}
+
+.users-table td:first-child {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.role-badge--admin { background: #eff6ff; color: #1d4ed8; }
+.role-badge--user  { background: var(--bg-elevated); color: var(--text-secondary); }
+
+.inactive-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    background: #fef2f2;
+    color: var(--accent-error);
+}
+
+.td-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.create-form {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.create-form .form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.create-form label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+}
+
+.create-form input,
+.create-form select {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+}
+
+.create-form input:focus,
+.create-form select:focus {
+    border-color: var(--accent-primary);
+    background: var(--bg-surface);
+}
+
+.create-form__submit {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-start;
+}
+
+.admin-error {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--accent-error);
+    margin-bottom: 20px;
+}
+</style>
+{% endblock %}
+
+{% block nav_extra %}
+<a href="/admin/users" class="btn btn--secondary">Admin</a>
+<form action="/auth/logout" method="post" style="display:inline">
+    <button type="submit" class="btn btn--secondary">Logout</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="admin-page">
+    <h1>User Management</h1>
+
+    {% if error %}
+    <div class="admin-error">{{ error }}</div>
+    {% endif %}
+
+    <!-- User list -->
+    <div class="admin-section">
+        <div class="admin-section__title">Users ({{ users | length }})</div>
+        <table class="users-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>NAS upload</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr>
+                <td>
+                    {{ u.username }}
+                    {% if u.id == current_user.id %}<span style="font-size:11px;color:var(--text-muted)"> (you)</span>{% endif %}
+                </td>
+                <td>{{ u.email or '—' }}</td>
+                <td><span class="role-badge role-badge--{{ u.role }}">{{ u.role }}</span></td>
+                <td>
+                    {% if u.role == 'admin' %}
+                    <span style="font-size:11px;color:var(--text-muted)">always</span>
+                    {% elif u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/toggle-nas" style="display:inline">
+                        <button type="submit" class="btn btn--sm {{ 'btn--primary' if u.can_upload_to_nas else 'btn--secondary' }}">
+                            {{ '✓ Enabled' if u.can_upload_to_nas else 'Disabled' }}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:11px;color:var(--text-muted)">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_active %}
+                    <span class="status-pill status-pill--ready">Active</span>
+                    {% else %}
+                    <span class="inactive-badge">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>{{ u.created_at | timeago }}</td>
+                <td>
+                    <div class="td-actions">
+                        {% if u.id != current_user.id %}
+                        <!-- Change role -->
+                        <form method="post" action="/admin/users/{{ u.id }}/role" style="display:inline-flex;gap:4px">
+                            <select name="role" style="padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-primary)">
+                                <option value="user" {% if u.role == 'user' %}selected{% endif %}>user</option>
+                                <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option>
+                            </select>
+                            <button type="submit" class="btn btn--secondary btn--sm">Set</button>
+                        </form>
+                        <!-- Toggle active -->
+                        <form method="post" action="/admin/users/{{ u.id }}/toggle-active" style="display:inline">
+                            <input type="hidden" name="is_active" value="{{ 'false' if u.is_active else 'true' }}">
+                            <button type="submit" class="btn btn--secondary btn--sm">
+                                {{ 'Deactivate' if u.is_active else 'Activate' }}
+                            </button>
+                        </form>
+                        <!-- Delete -->
+                        <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline"
+                              onsubmit="return confirm('Delete user \'{{ u.username }}\'? This cannot be undone.')">
+                            <button type="submit" class="btn btn--danger btn--sm">Delete</button>
+                        </form>
+                        {% else %}
+                        <span style="font-size:12px;color:var(--text-muted)">—</span>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Create user -->
+    <div class="admin-section">
+        <div class="admin-section__title">Create new user</div>
+        <form method="post" action="/admin/users/create" class="create-form">
+            <div class="form-field">
+                <label>Username *</label>
+                <input type="text" name="username" required autocomplete="off">
+            </div>
+            <div class="form-field">
+                <label>Password *</label>
+                <input type="password" name="password" required autocomplete="new-password">
+            </div>
+            <div class="form-field">
+                <label>Email (optional)</label>
+                <input type="email" name="email">
+            </div>
+            <div class="form-field">
+                <label>Role</label>
+                <select name="role">
+                    <option value="user" selected>user</option>
+                    <option value="admin">admin</option>
+                </select>
+            </div>
+            <div class="create-form__submit">
+                <button type="submit" class="btn btn--primary">Create user</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

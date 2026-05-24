@@ -1,0 +1,119 @@
+services:
+
+  # ─── Infrastructure ───────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rosbag_viewer
+      POSTGRES_USER: rosbag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rosbag -d rosbag_viewer"]
+      interval: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  # ─── Application ──────────────────────────────────────────────
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rosbag:${POSTGRES_PASSWORD}@postgres/rosbag_viewer
+      SYNC_DATABASE_URL: postgresql://rosbag:${POSTGRES_PASSWORD}@postgres/rosbag_viewer
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      UPLOADS_DIR: /data/uploads
+      RRD_DIR: /data/rrd
+      THUMB_DIR: /data/thumb
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      MAX_UPLOAD_SIZE_GB: ${MAX_UPLOAD_SIZE_GB:-50}
+      RERUN_VERSION: ${RERUN_VERSION:-0.32.0}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+    volumes:
+      - bag_data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 10s
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=${WORKER_CONCURRENCY:-2} -Q celery
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rosbag:${POSTGRES_PASSWORD}@postgres/rosbag_viewer
+      SYNC_DATABASE_URL: postgresql://rosbag:${POSTGRES_PASSWORD}@postgres/rosbag_viewer
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      UPLOADS_DIR: /data/uploads
+      RRD_DIR: /data/rrd
+      THUMB_DIR: /data/thumb
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      RERUN_VERSION: ${RERUN_VERSION:-0.32.0}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+    volumes:
+      - bag_data:/data
+    depends_on:
+      - postgres
+      - redis
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+
+  flower:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A worker.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - redis
+
+  nginx:
+    build:
+      context: nginx/
+    ports:
+      - "80:80"
+    volumes:
+      - bag_data:/data:ro
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+
+volumes:
+  postgres_data:
+  redis_data:
+  bag_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_DIR:-./data}

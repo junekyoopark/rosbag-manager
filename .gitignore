@@ -1,0 +1,37 @@
+# Environment / secrets
+.env
+.env.local
+*.env
+
+# Runtime data
+data/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Vendor assets (downloaded at Docker build time)
+frontend/static/vendor/
+
+# Logs
+*.log
+celerybeat-schedule
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

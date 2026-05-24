@@ -1,0 +1,125 @@
+<div class="bag-card bag-card--{{ bag.status }}"
+     data-bag-id="{{ bag.id }}"
+     {% if bag.status == 'converting' %}
+     hx-get="/api/bags/{{ bag.id }}/card-partial"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+
+    <a href="/bags/{{ bag.id }}" class="bag-card__thumb-link"
+       {% if bag.status != 'ready' %}onclick="return false;" style="cursor:default"{% endif %}>
+        <div class="bag-card__thumb">
+            {% if bag.thumbnail_path %}
+                <img src="/thumbnails/{{ bag.id }}.jpg" alt="{{ bag.name }}" loading="lazy">
+            {% else %}
+                <div class="bag-card__thumb-placeholder">
+                    <img src="/static/img/placeholder.svg" alt="placeholder" width="100" height="56">
+                </div>
+            {% endif %}
+
+            {% if bag.status == 'converting' %}
+                <div class="bag-card__converting-overlay">
+                    <div class="spinner"></div>
+                    <div class="progress-bar" style="width:100%;max-width:180px">
+                        <div class="progress-bar__fill"
+                             style="width: {{ (bag.job.progress_pct if bag.job else 0) }}%"></div>
+                    </div>
+                    <span class="progress-label">{{ bag.job.current_step if bag.job else 'Converting…' }}</span>
+                </div>
+            {% elif bag.status == 'error' %}
+                <div class="bag-card__error-overlay">⚠</div>
+            {% endif %}
+        </div>
+    </a>
+
+    <div class="bag-card__info">
+        <div class="bag-card__header">
+            <span class="badge badge--{{ bag.bag_format }}">{{ bag.bag_format }}</span>
+            <span class="status-pill status-pill--{{ bag.status }}">{{ bag.status }}</span>
+            {% if bag.status == 'ready' and not bag.published %}
+            <span class="status-pill status-pill--draft">draft</span>
+            {% endif %}
+        </div>
+
+        <h3 class="bag-card__name">{{ bag.name }}</h3>
+
+        {% if bag.status == 'ready' %}
+            <div class="bag-card__meta">
+                {% if bag.duration_sec %}<span>{{ bag.duration_sec | format_duration }}</span><span>·</span>{% endif %}
+                {% if bag.topics %}<span>{{ bag.topics | length }} topics</span><span>·</span>{% endif %}
+                <span>{{ bag.file_size_bytes | format_bytes }}</span>
+            </div>
+        {% elif bag.status == 'error' %}
+            <div class="bag-card__error-msg">
+                {{ (bag.job.error_message or 'Unknown error')[:80] if bag.job else 'Conversion failed' }}
+            </div>
+            {% if request.state.current_user and request.state.current_user.role == 'admin' %}
+            <button class="btn btn--danger btn--sm"
+                    hx-post="/api/bags/{{ bag.id }}/reconvert"
+                    hx-swap="none">Retry</button>
+            {% endif %}
+        {% endif %}
+
+        {% if bag.status == 'ready' and not bag.published and request.state.current_user and request.state.current_user.role == 'admin' %}
+        <button class="btn btn--primary btn--sm" style="margin-top:4px;align-self:flex-start"
+                onclick="publishBag('{{ bag.id }}', this)">Publish</button>
+        {% endif %}
+
+        <div class="bag-card__footer">
+            <div class="bag-card__footer-left">
+                <time datetime="{{ bag.created_at.isoformat() }}" title="{{ bag.created_at }}">
+                    {{ bag.created_at | timeago }}
+                </time>
+                {% if bag.uploader %}
+                <span class="bag-card__uploader" title="Uploaded by {{ bag.uploader.username }}">
+                    · {{ bag.uploader.username }}
+                </span>
+                {% endif %}
+            </div>
+            <div class="bag-card__footer-right" style="margin-left:auto">
+                {% if bag.status == 'ready' and bag.rrd_path %}
+                <a href="/rrd/{{ bag.id }}.rrd" download="{{ bag.name }}.rrd"
+                   class="btn btn--secondary btn--sm bag-card__download"
+                   title="Download RRD" onclick="event.stopPropagation()">↓ RRD</a>
+                {% endif %}
+                {% if bag.upload_path %}
+                <a href="/api/bags/{{ bag.id }}/source"
+                   class="btn btn--secondary btn--sm bag-card__download"
+                   title="Download source bag" onclick="event.stopPropagation()">↓ Bag</a>
+                {% endif %}
+                {% if bag.status == 'ready' and can_nas %}
+                <button class="btn btn--secondary btn--sm bag-card__download"
+                        id="nas-btn-{{ bag.id }}"
+                        onclick="event.stopPropagation(); sendToNas('{{ bag.id }}', this)"
+                        title="Send to NAS">→ NAS</button>
+                {% endif %}
+                <div class="bag-card__tags">
+                    {% for tag in (bag.tags or []) %}
+                        <button class="tag tag--clickable"
+                                onclick="event.stopPropagation(); filterByTag(this.dataset.tag)"
+                                data-tag="{{ tag }}">{{ tag }}</button>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="nas-progress-{{ bag.id }}" style="display:none;margin-top:6px">
+            <div class="progress-bar">
+                <div class="progress-bar__fill" id="nas-bar-{{ bag.id }}" style="width:0%"></div>
+            </div>
+            <div class="progress-label" id="nas-step-{{ bag.id }}">Connecting…</div>
+        </div>
+
+        {% if request.state.current_user and request.state.current_user.role == 'admin' %}
+        <button class="btn btn--ghost btn--sm bag-card__edit"
+                onclick='event.stopPropagation(); openEditModal("{{ bag.id }}", {{ bag.name | tojson }}, {{ (bag.description or "") | tojson }}, {{ (bag.tags or []) | tojson }})'
+                title="Edit metadata">✎</button>
+        <button class="btn btn--ghost btn--sm bag-card__delete"
+                hx-delete="/api/bags/{{ bag.id }}"
+                hx-confirm="Delete '{{ bag.name }}'? This cannot be undone."
+                hx-target="closest .bag-card"
+                hx-swap="outerHTML swap:300ms"
+                title="Delete bag">✕</button>
+        {% endif %}
+    </div>
+</div>

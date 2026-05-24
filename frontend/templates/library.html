@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+
+{% block title %}Library — USRG ROSBAG Manager{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/css/library.css">
+{% endblock %}
+
+{% block content %}
+<!-- Hidden state shared by filter buttons and search bar -->
+<input type="hidden" id="filter-status" name="status" value="">
+<input type="hidden" id="filter-format" name="format" value="">
+<input type="hidden" id="filter-drafts" name="drafts" value="false">
+
+<div class="filter-bar">
+    <span class="filter-bar__label">Status:</span>
+    <button class="filter-btn active" data-group="status" data-field="filter-status" data-value=""
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">All</button>
+    <button class="filter-btn" data-group="status" data-field="filter-status" data-value="ready"
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">● Ready</button>
+    <button class="filter-btn" data-group="status" data-field="filter-status" data-value="converting"
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">⟳ Converting</button>
+    <button class="filter-btn" data-group="status" data-field="filter-status" data-value="error"
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">! Error</button>
+
+    <span class="filter-bar__label" style="margin-left:8px">Format:</span>
+    <button class="filter-btn active" data-group="format" data-field="filter-format" data-value=""
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">All</button>
+    <button class="filter-btn" data-group="format" data-field="filter-format" data-value="ros1"
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">ROS1</button>
+    <button class="filter-btn" data-group="format" data-field="filter-format" data-value="ros2"
+            hx-get="/api/bags/grid-partial"
+            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-target="#bag-grid"
+            hx-push-url="false">ROS2</button>
+
+    {% set _u = request.state.current_user if request.state is defined else none %}
+    {% if _u and _u.role == 'admin' %}
+    <span class="filter-bar__label" style="margin-left:8px">View:</span>
+    <button class="filter-btn" id="btn-drafts"
+            onclick="toggleDraftsMode(this)"
+            title="Show bags awaiting publish">Drafts</button>
+    {% endif %}
+</div>
+
+<div id="tag-mode-bar" class="hidden" style="display:none">
+    <span class="filter-bar__label">Tag match:</span>
+    <button class="filter-btn" id="btn-tag-or" onclick="setTagMode('or')">Any (OR)</button>
+    <button class="filter-btn active" id="btn-tag-and" onclick="setTagMode('and')">All (AND)</button>
+</div>
+
+<div id="bag-grid" class="bag-grid">
+    {% if bags %}
+        {% for bag in bags %}
+            {% include "partials/bag_card.html" %}
+        {% endfor %}
+    {% else %}
+        <div class="bag-grid--empty">
+            <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5"
+                 viewBox="0 0 24 24" style="color:var(--text-muted)">
+                <path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+            </svg>
+            <p>No bags uploaded yet.</p>
+            <a href="/upload" class="btn btn--primary">Upload your first bag</a>
+        </div>
+    {% endif %}
+</div>
+
+{% if total > 20 %}
+<div class="load-more-wrap">
+    <button class="btn btn--secondary"
+            hx-get="/api/bags/grid-partial?offset=20"
+            hx-target="#bag-grid"
+            hx-swap="beforeend">Load more</button>
+</div>
+{% endif %}
+
+<!-- NAS destination popover (shared) -->
+<div id="nas-dest-popover" style="
+    display:none; position:fixed; z-index:300;
+    background:var(--bg-surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:14px 16px; width:300px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.18); display:none; flex-direction:column; gap:10px;">
+  <div style="font-size:13px;font-weight:600;color:var(--text-primary)">NAS destination folder</div>
+  <input id="nas-dest-input" class="modal__input" type="text" placeholder="/rosbags"
+         style="font-size:13px" spellcheck="false">
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button class="btn btn--secondary btn--sm" onclick="closeNasPopover()">Cancel</button>
+    <button class="btn btn--primary btn--sm" id="nas-dest-confirm">Send →</button>
+  </div>
+</div>
+
+<!-- Edit modal (shared) -->
+<div id="edit-modal" class="modal-backdrop hidden" onclick="if(event.target===this)closeEditModal()">
+    <div class="modal">
+        <div class="modal__header">
+            <span class="modal__title">Edit bag</span>
+            <button class="modal__close" onclick="closeEditModal()">✕</button>
+        </div>
+        <div class="modal__field">
+            <label class="modal__label">Name</label>
+            <input class="modal__input" id="edit-name" type="text">
+        </div>
+        <div class="modal__field">
+            <label class="modal__label">Description</label>
+            <input class="modal__input" id="edit-desc" type="text" placeholder="Optional…">
+        </div>
+        <div class="modal__field">
+            <label class="modal__label">Tags</label>
+            <div class="tags-input" id="edit-tags-container"
+                 onclick="document.getElementById('edit-tag-input').focus()">
+                <input type="text" id="edit-tag-input" placeholder="Add tag…">
+            </div>
+        </div>
+        <div class="modal__footer">
+            <button class="btn btn--secondary btn--sm" onclick="closeEditModal()">Cancel</button>
+            <button class="btn btn--primary btn--sm" id="edit-save-btn" onclick="saveEdit()">Save</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/library.js"></script>
+<script>
+// ── Edit modal ─────────────────────────────────────────────────
+let _editBagId = null;
+let _editTagValues = [];
+
+function openEditModal(bagId, name, desc, tags) {
+    _editBagId = bagId;
+    _editTagValues = tags ? [...tags] : [];
+
+    document.getElementById('edit-name').value = name || '';
+    document.getElementById('edit-desc').value = desc || '';
+
+    const container = document.getElementById('edit-tags-container');
+    const input = document.getElementById('edit-tag-input');
+    // Clear existing chips
+    container.querySelectorAll('.tag-chip').forEach(c => c.remove());
+    _editTagValues.forEach(t => _addEditChip(t));
+
+    document.getElementById('edit-modal').classList.remove('hidden');
+    document.getElementById('edit-name').focus();
+}
+
+function closeEditModal() {
+    document.getElementById('edit-modal').classList.add('hidden');
+    _editBagId = null;
+}
+
+function _addEditChip(val) {
+    const container = document.getElementById('edit-tags-container');
+    const input = document.getElementById('edit-tag-input');
+    const chip = document.createElement('span');
+    chip.className = 'tag-chip';
+    chip.dataset.tag = val;
+    chip.innerHTML = `${escHtml(val)}<span class="tag-chip__remove" data-tag="${escHtml(val)}">×</span>`;
+    chip.querySelector('.tag-chip__remove').addEventListener('click', () => {
+        _editTagValues = _editTagValues.filter(t => t !== val);
+        chip.remove();
+    });
+    container.insertBefore(chip, input);
+}
+
+document.getElementById('edit-tag-input').addEventListener('keydown', (e) => {
+    const input = e.target;
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = input.value.trim();
+        if (val && !_editTagValues.includes(val)) {
+            _editTagValues.push(val);
+            _addEditChip(val);
+        }
+        input.value = '';
+    }
+    if (e.key === 'Backspace' && input.value === '' && _editTagValues.length) {
+        const last = _editTagValues.pop();
+        document.querySelector(`#edit-tags-container [data-tag="${CSS.escape(last)}"]`)?.remove();
+    }
+});
+
+async function saveEdit() {
+    if (!_editBagId) return;
+    const btn = document.getElementById('edit-save-btn');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const name = document.getElementById('edit-name').value.trim();
+    const desc = document.getElementById('edit-desc').value.trim() || null;
+
+    try {
+        const r = await fetch(`/api/bags/${_editBagId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, description: desc, tags: _editTagValues }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        closeEditModal();
+        // Refresh the card
+        htmx.ajax('GET', `/api/bags/${_editBagId}/card-partial`, {
+            target: `[data-bag-id="${_editBagId}"]`,
+            swap: 'outerHTML',
+        });
+    } catch {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+    }
+}
+
+// ── Drafts toggle ──────────────────────────────────────────────
+function toggleDraftsMode(btn) {
+    const draftsInput = document.getElementById('filter-drafts');
+    const isDrafts = draftsInput.value === 'true';
+    draftsInput.value = isDrafts ? 'false' : 'true';
+    btn.classList.toggle('active', !isDrafts);
+    htmx.ajax('GET', '/api/bags/grid-partial', {
+        target: '#bag-grid',
+        swap: 'innerHTML',
+        values: {
+            drafts: !isDrafts,
+            status: document.getElementById('filter-status').value,
+            format: document.getElementById('filter-format').value,
+            q: document.querySelector('[name="q"]')?.value || '',
+        },
+    });
+}
+
+function escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+{% endblock %}

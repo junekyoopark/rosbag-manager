@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}USRG ROSBAG Manager{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    {% block extra_css %}{% endblock %}
+    <script src="/static/vendor/htmx/htmx.min.js" defer></script>
+</head>
+<body>
+<nav class="navbar">
+    <a href="/" class="navbar__brand">
+        <span class="navbar__brand-dot"></span>
+        <div class="navbar__brand-text">
+            <span class="navbar__brand-title">USRG ROSBAG Manager</span>
+            <span class="navbar__brand-sub">by JKP</span>
+        </div>
+    </a>
+    <div class="navbar__spacer"></div>
+    {% block nav_extra %}
+    <div class="navbar__search">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24" style="color:var(--text-muted);flex-shrink:0">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="search" name="q" placeholder="Search bags, tags…"
+               hx-get="/api/bags/grid-partial"
+               hx-trigger="input changed delay:300ms"
+               hx-include="#filter-status, #filter-format"
+               hx-target="#bag-grid"
+               hx-push-url="false"
+               onkeydown="if(event.key==='Enter')event.preventDefault()">
+    </div>
+    <a href="/bags/local" class="btn btn--secondary btn--sm">Local RRD</a>
+    {% set _user = request.state.current_user if request.state is defined else none %}
+    {% if _user and _user.role == 'admin' %}
+    <a href="/upload" class="btn btn--primary btn--sm">Upload</a>
+    {% endif %}
+    {% if _user %}
+    <details class="user-menu">
+        <summary class="user-menu__trigger">
+            <span class="user-menu__avatar">{{ _user.username[0] | upper }}</span>
+            <span class="user-menu__name">{{ _user.username }}</span>
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"
+                 viewBox="0 0 24 24" class="user-menu__caret">
+                <polyline points="6 9 12 15 18 9"/>
+            </svg>
+        </summary>
+        <div class="user-menu__dropdown">
+            <a href="/info" class="user-menu__item">Info</a>
+            {% if _user.role == 'admin' %}
+            <a href="/admin/users" class="user-menu__item">User management</a>
+            <a href="/nas" class="user-menu__item">NAS settings</a>
+            {% endif %}
+            <div class="user-menu__divider"></div>
+            <form action="/auth/logout" method="post">
+                <button type="submit" class="user-menu__item user-menu__item--danger">Logout</button>
+            </form>
+        </div>
+    </details>
+    {% endif %}
+    {% endblock %}
+</nav>
+{% block content %}{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

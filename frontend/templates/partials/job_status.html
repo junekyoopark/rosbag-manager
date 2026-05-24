@@ -1,0 +1,21 @@
+{% if job %}
+<div class="job-status"
+     {% if job.status not in ('success', 'failure') %}
+     hx-get="/api/jobs/{{ job.id }}"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+    <div class="progress-bar">
+        <div class="progress-bar__fill" style="width: {{ job.progress_pct }}%"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:4px">
+        <span style="color:var(--text-muted)">{{ job.current_step or job.status }}</span>
+        <span style="color:var(--text-secondary)">{{ job.progress_pct }}%</span>
+    </div>
+    {% if job.status == 'failure' %}
+    <div style="font-size:11px;color:var(--accent-primary);margin-top:4px">
+        {{ job.error_message[:120] if job.error_message else 'Failed' }}
+    </div>
+    {% endif %}
+</div>
+{% endif %}

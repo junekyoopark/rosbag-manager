@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — USRG ROSBAG Manager</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <style>
+        html, body {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-base);
+        }
+
+        .login-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 40px 40px 36px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+        }
+
+        .login-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 28px;
+        }
+
+        .login-brand__dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            flex-shrink: 0;
+        }
+
+        .login-brand__text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.2;
+        }
+
+        .login-brand__title {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text-primary);
+        }
+
+        .login-brand__sub {
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 24px;
+        }
+
+        .form-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .form-field label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .form-field input {
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .form-field input:focus {
+            border-color: var(--accent-primary);
+            background: var(--bg-surface);
+        }
+
+        .login-error {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            border-radius: var(--radius-md);
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--accent-error);
+            margin-bottom: 16px;
+        }
+
+        .btn--login {
+            width: 100%;
+            justify-content: center;
+            padding: 10px;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="login-card">
+    <div class="login-brand">
+        <span class="login-brand__dot"></span>
+        <div class="login-brand__text">
+            <span class="login-brand__title">USRG ROSBAG Manager</span>
+            <span class="login-brand__sub">by JKP</span>
+        </div>
+    </div>
+
+    <h2>Sign in</h2>
+
+    {% if error %}
+    <div class="login-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/auth/login">
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="form-field">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" autofocus autocomplete="username" required>
+        </div>
+        <div class="form-field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn--primary btn--login">Sign in</button>
+    </form>
+</div>
+</body>
+</html>
