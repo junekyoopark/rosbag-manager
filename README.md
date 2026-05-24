@@ -38,7 +38,7 @@ docker compose up --build -d
 docker compose exec backend alembic upgrade head
 ```
 
-Open `http://<PUBLIC_HOST>` in your browser. Log in with the admin credentials set in `.env`.
+Open `http://<PUBLIC_HOST>` or `http://localhost` in your browser. Log in with the admin credentials set in `.env`.
 
 ## Configuration
 
