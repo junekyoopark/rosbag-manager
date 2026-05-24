@@ -30,7 +30,7 @@ A self-hosted web application for managing, converting, and visualizing ROS bag 
 **Prerequisites:** Docker and Docker Compose.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/junekyoopark/rosbag-manager
 cd rosbag-viewer
 cp .env.example .env
 # Edit .env — set POSTGRES_PASSWORD, SECRET_KEY, PUBLIC_HOST
