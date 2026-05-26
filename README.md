@@ -73,7 +73,7 @@ On subsequent restarts, nginx automatically detects the certificate and uses HTT
 | `PUBLIC_HOST` | Yes | Hostname or IP shown to users (e.g. `192.168.1.10` or `yourdomain.com`) |
 | `INITIAL_ADMIN_PASSWORD` | First boot | Admin password — remove from `.env` after first login |
 | `DOMAIN` | HTTPS only | Domain name for Let's Encrypt certificate |
-| `CERTBOT_EMAIL` | HTTPS only | Email for Let's Encrypt expiry notifications |
+| `CERTBOT_EMAIL` | HTTPS only | Email for Let's Encrypt renewal failure alerts |
 | `DATA_DIR` | No | Host path for bag data volume (default: `./data`) |
 | `MAX_UPLOAD_SIZE_GB` | No | Upload size limit in GB (default: `50`) |
 | `WORKER_CONCURRENCY` | No | Parallel conversion workers (default: `2`) |
