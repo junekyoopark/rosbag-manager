@@ -34,7 +34,7 @@ Bags are converted to Rerun `.rrd` format and streamed directly in the browser v
 **Prerequisites:** Docker and Docker Compose v2.
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/junekyoopark/rosbag-manager.git
 cd rosbag-manager
 cp .env.example .env
 # Edit .env — at minimum set POSTGRES_PASSWORD, SECRET_KEY, PUBLIC_HOST
