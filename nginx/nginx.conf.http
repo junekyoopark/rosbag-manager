@@ -1,0 +1,66 @@
+worker_processes auto;
+events { worker_connections 4096; }
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    client_max_body_size 55G;
+    client_body_timeout  3600s;
+    send_timeout         3600s;
+
+    upstream backend {
+        server backend:8000;
+        keepalive 32;
+    }
+
+    server {
+        listen 80;
+        server_name _;
+        resolver 127.0.0.11 valid=5s;
+
+        # Static RRD files — served directly from disk, range requests for Rerun viewer
+        location /rrd/ {
+            alias /data/rrd/;
+            add_header Access-Control-Allow-Origin *;
+            add_header Access-Control-Allow-Headers Range;
+            add_header Access-Control-Expose-Headers "Content-Range, Content-Length, Accept-Ranges";
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            add_header Accept-Ranges bytes;
+            sendfile on;
+            sendfile_max_chunk 2m;
+            tcp_nopush on;
+            tcp_nodelay on;
+            types { application/octet-stream rrd; }
+        }
+
+        # Thumbnails
+        location /thumbnails/ {
+            alias /data/thumb/;
+            add_header Cache-Control "public, max-age=86400";
+            expires 1d;
+        }
+
+        # SSE endpoints — must not buffer
+        location ~ ^/api/jobs/.*/stream$ {
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_buffering off;
+            proxy_cache off;
+            proxy_read_timeout 3600s;
+            proxy_http_version 1.1;
+            proxy_set_header Connection '';
+            chunked_transfer_encoding on;
+        }
+
+        # Everything else → FastAPI
+        location / {
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_http_version 1.1;
+            proxy_read_timeout 3600s;
+        }
+    }
+}
