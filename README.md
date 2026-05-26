@@ -1,6 +1,6 @@
-# USRG ROSBAG Manager
+# ROSBAG Manager
 
-A self-hosted web application for uploading, managing, converting, and visualizing ROS bag files (`.bag`, `.db3`, `.mcap`). Built by the [Unmanned Systems Research Group](https://unmanned.kaist.ac.kr) at KAIST.
+A self-hosted web application for uploading, managing, converting, and visualizing ROS bag files (`.bag`, `.db3`, `.mcap`). Built by JKP at the [Unmanned Systems Research Group](https://unmanned.kaist.ac.kr) at KAIST.
 
 Bags are converted to Rerun `.rrd` format and streamed directly in the browser via the Rerun web viewer — no desktop app required.
 
