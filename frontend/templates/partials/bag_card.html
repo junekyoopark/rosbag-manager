@@ -10,7 +10,12 @@
        {% if bag.status != 'ready' %}onclick="return false;" style="cursor:default"{% endif %}>
         <div class="bag-card__thumb">
             {% if bag.thumbnail_path %}
-                <img src="/thumbnails/{{ bag.id }}.jpg" alt="{{ bag.name }}" loading="lazy">
+                <img src="/thumbnails/{{ bag.id }}.jpg" alt="{{ bag.name }}" loading="lazy"
+                     {% if bag.frame_count and bag.frame_count > 1 %}
+                     data-sprite="/thumbnails/{{ bag.id }}_sprite.jpg"
+                     data-frames="{{ bag.frame_count }}"
+                     data-cols="5"
+                     {% endif %}>
             {% else %}
                 <div class="bag-card__thumb-placeholder">
                     <img src="/static/img/placeholder.svg" alt="placeholder" width="100" height="56">
@@ -36,6 +41,7 @@
         <div class="bag-card__header">
             <span class="badge badge--{{ bag.bag_format }}">{{ bag.bag_format }}</span>
             <span class="status-pill status-pill--{{ bag.status }}">{{ bag.status }}</span>
+            {% for t in (bag.team or []) %}<span class="team-pill">{{ t }}</span>{% endfor %}
             {% if bag.status == 'ready' and not bag.published %}
             <span class="status-pill status-pill--draft">draft</span>
             {% endif %}
@@ -45,8 +51,11 @@
 
         {% if bag.status == 'ready' %}
             <div class="bag-card__meta">
+                {% if bag.start_time_ns %}<span data-ros-time="{{ bag.start_time_ns }}"></span><span>·</span>{% endif %}
                 {% if bag.duration_sec %}<span>{{ bag.duration_sec | format_duration }}</span><span>·</span>{% endif %}
-                {% if bag.topics %}<span>{{ bag.topics | length }} topics</span><span>·</span>{% endif %}
+                {% if bag.topics %}<span>{{ bag.topics | length }} topics</span>{% endif %}
+            </div>
+            <div class="bag-card__meta">
                 <span>{{ bag.file_size_bytes | format_bytes }}</span>
             </div>
         {% elif bag.status == 'error' %}
@@ -58,9 +67,11 @@
                     hx-post="/api/bags/{{ bag.id }}/reconvert"
                     hx-swap="none">Retry</button>
             {% endif %}
+
         {% endif %}
 
-        {% if bag.status == 'ready' and not bag.published and request.state.current_user and request.state.current_user.role == 'admin' %}
+        {% set _cu = request.state.current_user %}
+        {% if bag.status == 'ready' and not bag.published and _cu and _cu.role in ('admin', 'user') %}
         <button class="btn btn--primary btn--sm" style="margin-top:4px;align-self:flex-start"
                 onclick="publishBag('{{ bag.id }}', this)">Publish</button>
         {% endif %}
@@ -110,10 +121,17 @@
             <div class="progress-label" id="nas-step-{{ bag.id }}">Connecting…</div>
         </div>
 
-        {% if request.state.current_user and request.state.current_user.role == 'admin' %}
+        {% set _cu = request.state.current_user %}
+        {% set _can_edit = _cu and (_cu.role == 'admin' or (_cu.role == 'user' and bag.uploader and bag.uploader.id == _cu.id)) %}
+        {% if _can_edit %}
+        <button class="btn btn--ghost btn--sm bag-card__thumb-edit"
+                onclick='event.stopPropagation(); openThumbnailModal("{{ bag.id }}", {{ bag.frame_count or 0 }})'
+                title="Edit thumbnail">⊞</button>
         <button class="btn btn--ghost btn--sm bag-card__edit"
-                onclick='event.stopPropagation(); openEditModal("{{ bag.id }}", {{ bag.name | tojson }}, {{ (bag.description or "") | tojson }}, {{ (bag.tags or []) | tojson }})'
+                onclick='event.stopPropagation(); openEditModal("{{ bag.id }}", {{ bag.name | tojson }}, {{ (bag.description or "") | tojson }}, {{ (bag.tags or []) | tojson }}, {{ (bag.team or []) | tojson }})'
                 title="Edit metadata">✎</button>
+        {% endif %}
+        {% if _cu and (_cu.role == 'admin' or (_cu.role == 'user' and _cu.can_delete_own and bag.uploader and bag.uploader.id == _cu.id)) %}
         <button class="btn btn--ghost btn--sm bag-card__delete"
                 hx-delete="/api/bags/{{ bag.id }}"
                 hx-confirm="Delete '{{ bag.name }}'? This cannot be undone."

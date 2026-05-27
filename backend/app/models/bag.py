@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, BigInteger, Float, DateTime, ARRAY, ForeignKey, Boolean
+from sqlalchemy import String, Text, BigInteger, Integer, Float, DateTime, ARRAY, ForeignKey, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -21,6 +21,8 @@ class Bag(Base):
     rrd_path: Mapped[str | None] = mapped_column(Text)
     rrd_url: Mapped[str | None] = mapped_column(Text)
     thumbnail_path: Mapped[str | None] = mapped_column(Text)
+    frame_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    team: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     rrd_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
     duration_sec: Mapped[float | None] = mapped_column(Float)

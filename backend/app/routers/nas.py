@@ -26,6 +26,17 @@ class NASConfigIn(BaseModel):
     verify_ssl: bool = True
 
 
+@router.get("/import-path")
+async def get_import_path(db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+    """Return the default browse path for NAS import — accessible to users with import permission."""
+    if not _can_import_from_nas(user):
+        raise HTTPException(403, "NAS import privilege required")
+    config = await db.get(NASConfig, 1)
+    if not config or not config.enabled:
+        raise HTTPException(400, "NAS not configured")
+    return {"path": config.upload_path or "/"}
+
+
 @router.get("/config")
 async def get_config(db: AsyncSession = Depends(get_db), _=Depends(require_admin)):
     config = await db.get(NASConfig, 1)
@@ -105,6 +116,106 @@ def _can_use_nas(user) -> bool:
     return user.role == "admin" or getattr(user, "can_upload_to_nas", False)
 
 
+def _can_import_from_nas(user) -> bool:
+    if user is None:
+        return False
+    return user.role == "admin" or getattr(user, "can_import_from_nas", False)
+
+
+# ── NAS browse ──────────────────────────────────────────────────
+
+@router.get("/browse")
+async def browse_nas(
+    path: str = "/",
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    if not _can_import_from_nas(user):
+        raise HTTPException(403, "NAS import privilege required")
+    config = await db.get(NASConfig, 1)
+    if not config or not config.enabled:
+        raise HTTPException(400, "NAS not configured")
+    from app.services.nas_service import (
+        decrypt_password, synology_login, synology_logout,
+        synology_list_dir, synology_list_shares,
+    )
+    try:
+        password = decrypt_password(config.encrypted_password)
+        sid = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: synology_login(config.dsm_url, config.username, password, config.verify_ssl)
+        )
+        if path.strip("/") == "":
+            # Root: enumerate available shared folders
+            share_paths = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: synology_list_shares(config.dsm_url, sid, config.verify_ssl)
+            )
+            items = [{"name": p.strip("/").split("/")[-1], "path": p,
+                      "is_dir": True, "size": 0, "mtime": 0}
+                     for p in share_paths]
+        else:
+            items = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: synology_list_dir(config.dsm_url, sid, path, config.verify_ssl)
+            )
+        synology_logout(config.dsm_url, sid, config.verify_ssl)
+        return {"path": path, "items": items}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+# ── NAS import ──────────────────────────────────────────────────
+
+class NASImportIn(BaseModel):
+    path: str
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] = []
+    team: list[str] = []
+
+
+@router.post("/import")
+async def import_from_nas(
+    body: NASImportIn,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    if not _can_import_from_nas(user):
+        raise HTTPException(403, "NAS import privilege required")
+    config = await db.get(NASConfig, 1)
+    if not config or not config.enabled:
+        raise HTTPException(400, "NAS not configured")
+
+    from pathlib import Path as _Path
+    import uuid as _uuid
+    from app.models.bag import Bag
+
+    nas_filename = _Path(body.path).name
+    bag_name = (body.name or "").strip() or _Path(nas_filename).stem
+    bag_id = str(_uuid.uuid4())
+
+    bag = Bag(
+        id=_uuid.UUID(bag_id),
+        name=bag_name,
+        description=body.description or None,
+        original_filename=nas_filename,
+        bag_format="unknown",
+        upload_path="",
+        file_size_bytes=0,
+        status="pending",
+        tags=body.tags or [],
+        team=body.team or [],
+        uploaded_by_id=user.id if user else None,
+        published=False,
+    )
+    db.add(bag)
+    await db.commit()
+
+    task_id = str(_uuid.uuid4())
+    from worker.tasks.nas_import import import_bag_from_nas
+    import_bag_from_nas.apply_async(args=[bag_id, body.path], task_id=task_id)
+
+    return {"task_id": task_id, "bag_id": bag_id}
+
+
 class NASSendIn(BaseModel):
     dest_path: str | None = None  # overrides config.upload_path when set
 
@@ -134,6 +245,15 @@ async def send_bag_to_nas(
 
 # ── Task progress SSE ───────────────────────────────────────────
 
+@router.delete("/task/{task_id}")
+async def cancel_nas_task(task_id: str, user=Depends(get_current_user)):
+    if not user:
+        raise HTTPException(401)
+    from worker.celery_app import celery_app
+    celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+    return {"status": "cancelled"}
+
+
 @router.get("/task/{task_id}/stream")
 async def stream_nas_task(task_id: str):
     async def event_generator():
@@ -145,7 +265,9 @@ async def stream_nas_task(task_id: str):
             meta = result.info or {}
             pct = meta.get("pct", 0) if isinstance(meta, dict) else 0
             step = meta.get("step", state) if isinstance(meta, dict) else state
-            payload = json.dumps({"state": state, "pct": pct, "step": step})
+            bag_id = meta.get("bag_id") if isinstance(meta, dict) else None
+            payload = json.dumps({"state": state, "pct": pct, "step": step,
+                                  **({"bag_id": bag_id} if bag_id else {})})
             yield f"data: {payload}\n\n"
             if state in ("SUCCESS", "FAILURE"):
                 break

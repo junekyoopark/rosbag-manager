@@ -55,17 +55,18 @@ def introspect_bag(bag_id: str, rrd_path: str, mcap_path: str):
 
 @celery_app.task(name="extract_thumbnail_task")
 def extract_thumbnail_task(bag_id: str, mcap_path: str):
-    from app.utils.thumbnails import extract_thumbnail
-    from app.db.session import SyncSessionLocal
+    from app.utils.thumbnails import extract_frames
+    from app.config import settings
 
     db = SyncSessionLocal()
     try:
-        result = extract_thumbnail(bag_id, mcap_path)
-        if result:
-            bag = db.get(Bag, bag_id)
-            if bag:
-                bag.thumbnail_path = str(result)
-                db.commit()
+        count = extract_frames(bag_id, mcap_path)
+        bag = db.get(Bag, bag_id)
+        if bag:
+            if count:
+                bag.thumbnail_path = str(Path(settings.THUMB_DIR) / f"{bag_id}.jpg")
+                bag.frame_count = count
+            db.commit()
     except Exception:
         pass
     finally:

@@ -302,6 +302,17 @@ details.user-menu[open] .user-menu__caret {
     font-weight: 600;
 }
 
+.team-pill {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fdf4ff;
+    color: #7e22ce;
+    border: 1px solid #e9d5ff;
+}
+
 .status-pill--ready      { background: #f0fdf4; color: #15803d; }
 .status-pill--converting { background: #fffbeb; color: #b45309; }
 .status-pill--pending    { background: var(--bg-elevated); color: var(--text-secondary); }
@@ -466,6 +477,30 @@ details.user-menu[open] .user-menu__caret {
 
 .hidden { display: none !important; }
 
+/* ── Tag chips ── */
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    background: var(--accent-primary);
+    border: 1px solid var(--accent-primary);
+    border-radius: 999px;
+    font-size: 11px;
+    color: #fff;
+    line-height: 1.4;
+}
+
+.tag-chip__remove {
+    cursor: pointer;
+    color: rgba(255,255,255,0.65);
+    font-size: 13px;
+    line-height: 1;
+    margin-left: 1px;
+}
+
+.tag-chip__remove:hover { color: #fff; }
+
 /* ── Progress bar ── */
 .progress-bar {
     width: 100%;
@@ -479,4 +514,24 @@ details.user-menu[open] .user-menu__caret {
     height: 100%;
     background: var(--accent-primary);
     transition: width 0.4s ease;
+}
+
+/* ── Background watermark ── */
+body::before {
+    content: '';
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 420px;
+    height: 420px;
+    background: url('/static/img/kaist_usrg_vertical.png') center / contain no-repeat;
+    opacity: 0.06;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.page-content {
+    position: relative;
+    z-index: 1;
 }

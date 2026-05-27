@@ -53,6 +53,7 @@ async def create_bag(
     db: AsyncSession,
     storage: StorageBackend,
     uploaded_by_id=None,
+    team: list[str] | None = None,
 ) -> tuple[Bag, ConversionJob]:
     max_bytes = settings.MAX_UPLOAD_SIZE_GB * 1_073_741_824
     suffix = Path(file.filename).suffix.lower()
@@ -84,6 +85,7 @@ async def create_bag(
         status="pending",
         tags=tag_list,
         uploaded_by_id=uploaded_by_id,
+        team=team,
     )
     db.add(bag)
     return bag
@@ -100,6 +102,7 @@ async def list_bags(
     limit: int,
     offset: int,
     drafts_only: bool = False,
+    team: str | None = None,
 ) -> tuple[int, list[Bag]]:
     stmt = select(Bag).options(selectinload(Bag.job), selectinload(Bag.topics), selectinload(Bag.uploader))
 
@@ -134,6 +137,10 @@ async def list_bags(
         stmt = stmt.where(Bag.bag_format == "ros1_bag")
     elif format == "ros2":
         stmt = stmt.where(Bag.bag_format.in_(["ros2_mcap", "ros2_db3"]))
+
+    if team:
+        team_list = [t.strip() for t in team.split(",") if t.strip()]
+        stmt = stmt.where(or_(*[Bag.team.any(t) for t in team_list]))
 
     sort_map = {
         "created_at_desc": Bag.created_at.desc(),

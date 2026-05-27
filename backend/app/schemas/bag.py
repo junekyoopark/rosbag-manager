@@ -68,6 +68,7 @@ class BagUpdate(BaseModel):
     description: str | None = None
     tags: list[str] | None = None
     published: bool | None = None
+    team: list[str] | None = None
 
 
 class BagUploadResponse(BaseModel):

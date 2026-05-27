@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Upload — USRG ROSBAG Manager{% endblock %}
+{% block title %}Upload — ROSBAG Manager{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="/static/css/upload.css">
@@ -18,26 +18,6 @@
         <div class="dropzone__sub">or click to browse · max {{ max_size_gb }}GB</div>
     </div>
 
-    <div class="upload-form">
-        <div class="form-field">
-            <label for="name-input">Name</label>
-            <input type="text" id="name-input" placeholder="campus_drive_2025_05_15">
-        </div>
-        <div class="form-field">
-            <label for="desc-input">Description</label>
-            <input type="text" id="desc-input" placeholder="Optional description…">
-        </div>
-        <div class="form-field">
-            <label>Tags</label>
-            <div class="tags-input" id="tags-container" onclick="document.getElementById('tag-input').focus()">
-                <input type="text" id="tag-input" placeholder="Add tag…">
-            </div>
-        </div>
-        <button class="btn btn--primary" id="submit-btn" style="align-self:flex-start">
-            Upload
-        </button>
-    </div>
-
     <div class="upload-queue" id="upload-queue" style="display:none">
         <h2>Upload Queue</h2>
         <div id="queue-list"></div>
@@ -48,6 +28,8 @@
 {% block scripts %}
 <script>
     const max_size_gb = {{ max_size_gb }};
+    const upload_teams = {{ (teams or []) | tojson }};
+    const upload_user_team = {{ (user_team or '') | tojson }};
 </script>
 <script src="/static/js/upload.js"></script>
 {% endblock %}

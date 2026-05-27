@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}User Management — USRG ROSBAG Manager{% endblock %}
+{% block title %}User Management — ROSBAG Manager{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -67,11 +67,14 @@
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 11px;
-    font-weight: 600;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
-.role-badge--admin { background: #eff6ff; color: #1d4ed8; }
-.role-badge--user  { background: var(--bg-elevated); color: var(--text-secondary); }
+.role-badge--admin  { background: #eff6ff; color: #1d4ed8; }
+.role-badge--user   { background: #f0fdf4; color: #15803d; }
+.role-badge--viewer { background: var(--bg-elevated); color: var(--text-secondary); }
 
 .inactive-badge {
     display: inline-block;
@@ -172,7 +175,10 @@
                     <th>Username</th>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Team</th>
                     <th>NAS upload</th>
+                    <th>NAS import</th>
+                    <th>Del own bags</th>
                     <th>Status</th>
                     <th>Created</th>
                     <th>Actions</th>
@@ -186,14 +192,73 @@
                     {% if u.id == current_user.id %}<span style="font-size:11px;color:var(--text-muted)"> (you)</span>{% endif %}
                 </td>
                 <td>{{ u.email or '—' }}</td>
-                <td><span class="role-badge role-badge--{{ u.role }}">{{ u.role }}</span></td>
+                <!-- Role: click badge to change inline -->
+                <td>
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/role" style="display:flex;align-items:center;gap:4px">
+                        <select name="role" class="role-select" onchange="this.form.submit()"
+                                style="padding:2px 6px;font-size:11px;font-weight:700;border:1px solid var(--border);border-radius:999px;background:var(--bg-elevated);color:var(--text-primary);cursor:pointer;appearance:none;-webkit-appearance:none;text-align:center;text-align-last:center">
+                            <option value="viewer" {% if u.role == 'viewer' %}selected{% endif %}>VIEWER</option>
+                            <option value="user"   {% if u.role == 'user'   %}selected{% endif %}>USER</option>
+                            <option value="admin"  {% if u.role == 'admin'  %}selected{% endif %}>ADMIN</option>
+                        </select>
+                    </form>
+                    {% else %}
+                    <span class="role-badge role-badge--{{ u.role }}">{{ u.role | upper }}</span>
+                    {% endif %}
+                </td>
+                <!-- Team -->
+                <td>
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/team" style="display:flex;align-items:center;gap:4px">
+                        <select name="team" onchange="this.form.submit()"
+                                style="padding:2px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-primary);cursor:pointer;max-width:120px">
+                            <option value="" {% if not u.team %}selected{% endif %}>—</option>
+                            {% for t in teams %}
+                            <option value="{{ t }}" {% if u.team == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                    {% else %}
+                    <span style="font-size:12px;color:var(--text-muted)">{{ u.team or '—' }}</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if u.role == 'admin' %}
                     <span style="font-size:11px;color:var(--text-muted)">always</span>
                     {% elif u.id != current_user.id %}
-                    <form method="post" action="/admin/users/{{ u.id }}/toggle-nas" style="display:inline">
-                        <button type="submit" class="btn btn--sm {{ 'btn--primary' if u.can_upload_to_nas else 'btn--secondary' }}">
-                            {{ '✓ Enabled' if u.can_upload_to_nas else 'Disabled' }}
+                    <form method="post" action="/admin/users/{{ u.id }}/toggle-nas" style="display:contents">
+                        <button type="submit" class="btn btn--sm {{ 'btn--primary' if u.can_upload_to_nas else '' }}"
+                                {% if not u.can_upload_to_nas %}style="color:var(--accent-error)"{% endif %}>
+                            {{ '✓' if u.can_upload_to_nas else '✕' }}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:11px;color:var(--text-muted)">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.role == 'admin' %}
+                    <span style="font-size:11px;color:var(--text-muted)">always</span>
+                    {% elif u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/toggle-nas-import" style="display:contents">
+                        <button type="submit" class="btn btn--sm {{ 'btn--primary' if u.can_import_from_nas else '' }}"
+                                {% if not u.can_import_from_nas %}style="color:var(--accent-error)"{% endif %}>
+                            {{ '✓' if u.can_import_from_nas else '✕' }}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:11px;color:var(--text-muted)">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.role == 'admin' %}
+                    <span style="font-size:11px;color:var(--text-muted)">always</span>
+                    {% elif u.role == 'user' and u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/toggle-delete-own" style="display:contents">
+                        <button type="submit" class="btn btn--sm {{ 'btn--primary' if u.can_delete_own else '' }}"
+                                {% if not u.can_delete_own %}style="color:var(--accent-error)"{% endif %}>
+                            {{ '✓' if u.can_delete_own else '✕' }}
                         </button>
                     </form>
                     {% else %}
@@ -209,32 +274,22 @@
                 </td>
                 <td>{{ u.created_at | timeago }}</td>
                 <td>
+                    {% if u.id != current_user.id %}
                     <div class="td-actions">
-                        {% if u.id != current_user.id %}
-                        <!-- Change role -->
-                        <form method="post" action="/admin/users/{{ u.id }}/role" style="display:inline-flex;gap:4px">
-                            <select name="role" style="padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:var(--bg-elevated);color:var(--text-primary)">
-                                <option value="user" {% if u.role == 'user' %}selected{% endif %}>user</option>
-                                <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option>
-                            </select>
-                            <button type="submit" class="btn btn--secondary btn--sm">Set</button>
-                        </form>
-                        <!-- Toggle active -->
-                        <form method="post" action="/admin/users/{{ u.id }}/toggle-active" style="display:inline">
+                        <form method="post" action="/admin/users/{{ u.id }}/toggle-active" style="display:contents">
                             <input type="hidden" name="is_active" value="{{ 'false' if u.is_active else 'true' }}">
                             <button type="submit" class="btn btn--secondary btn--sm">
                                 {{ 'Deactivate' if u.is_active else 'Activate' }}
                             </button>
                         </form>
-                        <!-- Delete -->
-                        <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:inline"
+                        <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:contents"
                               onsubmit="return confirm('Delete user \'{{ u.username }}\'? This cannot be undone.')">
                             <button type="submit" class="btn btn--danger btn--sm">Delete</button>
                         </form>
-                        {% else %}
-                        <span style="font-size:12px;color:var(--text-muted)">—</span>
-                        {% endif %}
                     </div>
+                    {% else %}
+                    <span style="font-size:12px;color:var(--text-muted)">—</span>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}
@@ -243,6 +298,32 @@
     </div>
 
     <!-- Create user -->
+    <!-- Team management -->
+    <div class="admin-section">
+        <div class="admin-section__title">Teams ({{ teams | length }})</div>
+        {% if teams %}
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px">
+            {% for t in teams %}
+            <div style="display:flex;align-items:center;gap:6px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:999px;padding:4px 12px;">
+                <span class="team-pill" style="background:none;border:none;padding:0;font-size:13px;color:var(--text-primary);font-weight:600">{{ t }}</span>
+                <form method="post" action="/admin/users/teams/{{ t }}/delete" style="display:contents"
+                      onsubmit="return confirm('Delete team \'{{ t }}\'?')">
+                    <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;line-height:1;padding:0" title="Delete team">×</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">No teams created yet.</p>
+        {% endif %}
+        <form method="post" action="/admin/users/teams/create" style="display:flex;gap:8px;align-items:center">
+            <input type="text" name="name" placeholder="New team name…" required
+                   style="padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);outline:none;width:200px">
+            <button type="submit" class="btn btn--primary btn--sm">+ Add team</button>
+        </form>
+    </div>
+
+    <!-- Create new user -->
     <div class="admin-section">
         <div class="admin-section__title">Create new user</div>
         <form method="post" action="/admin/users/create" class="create-form">
@@ -261,8 +342,9 @@
             <div class="form-field">
                 <label>Role</label>
                 <select name="role">
-                    <option value="user" selected>user</option>
-                    <option value="admin">admin</option>
+                    <option value="viewer" selected>VIEWER</option>
+                    <option value="user">USER</option>
+                    <option value="admin">ADMIN</option>
                 </select>
             </div>
             <div class="create-form__submit">

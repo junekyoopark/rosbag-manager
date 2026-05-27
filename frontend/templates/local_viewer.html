@@ -111,8 +111,7 @@ const fileInput = document.getElementById('file-input');
 const fileLabel = document.getElementById('file-label');
 const errorMsg  = document.getElementById('error-msg');
 
-let _viewer     = null;   // WebViewer instance, kept after first start
-let _activeBlobUrl = null; // keep alive until viewer is replaced
+let _viewer = null; // WebViewer instance
 
 // ── Drag-and-drop onto the overlay ────────────────────────────
 overlay.addEventListener('dragover', (e) => {
@@ -141,57 +140,39 @@ async function loadFile(file) {
     }
 
     errorMsg.style.display = 'none';
-    fileLabel.textContent = file.name;
-
-    // Read file bytes before touching the viewer so any read error surfaces early
-    let bytes;
-    try {
-        bytes = new Uint8Array(await file.arrayBuffer());
-    } catch (err) {
-        showError('Could not read file: ' + err.message);
-        return;
-    }
+    fileLabel.textContent = 'Uploading…';
 
     try {
+        // Upload to server so the viewer can fetch it over a normal HTTP URL
+        // (blob: URLs are not reliably fetchable from inside the Rerun WASM module)
+        const form = new FormData();
+        form.append('file', file);
+        const resp = await fetch('/bags/local/temp-rrd', { method: 'POST', body: form });
+        if (!resp.ok) throw new Error(`Upload failed: ${resp.status}`);
+        const { url } = await resp.json();
+
+        fileLabel.textContent = file.name;
+
         const { WebViewer } = await import('/static/vendor/rerun/index.js');
 
-        if (!_viewer) {
-            // First load — start the viewer with no URL, then push bytes via channel
-            overlay.style.display = 'none';
-            _viewer = new WebViewer();
-            await _viewer.start(null, container, {
-                width: '100%',
-                height: '100%',
-                hide_welcome_screen: true,
-            });
-        } else {
-            overlay.style.display = 'none';
+        // Stop previous viewer so the container is clean for the new recording
+        if (_viewer) {
+            _viewer.stop?.();
+            _viewer = null;
         }
 
-        // Wait for viewer ready (start() usually resolves when ready, but be defensive)
-        if (!_viewer.ready) {
-            await new Promise((resolve, reject) => {
-                const timer = setTimeout(() => reject(new Error('Viewer ready timeout')), 10000);
-                _viewer.once('ready', () => { clearTimeout(timer); resolve(); });
-            });
-        }
-
-        // Push file bytes through a named channel
-        const channel = _viewer.open_channel(file.name);
-
-        // Channel transitions to "ready" asynchronously; poll briefly
-        const deadline = Date.now() + 5000;
-        while (!channel.ready && Date.now() < deadline) {
-            await new Promise(r => setTimeout(r, 50));
-        }
-        if (!channel.ready) throw new Error('Channel did not become ready');
-
-        channel.send_rrd(bytes);
-        channel.close();
+        overlay.style.display = 'none';
+        _viewer = new WebViewer();
+        await _viewer.start(window.location.origin + url, container, {
+            width: '100%',
+            height: '100%',
+            hide_welcome_screen: true,
+        });
 
     } catch (err) {
         _viewer = null;
         overlay.style.display = 'flex';
+        fileLabel.textContent = 'Local RRD Viewer';
         showError('Failed to load: ' + err.message);
         console.error(err);
     }

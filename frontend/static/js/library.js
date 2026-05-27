@@ -5,6 +5,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     initFilterButtons();
     formatRelativeTimes();
+    formatRosTimes();
+    initSearchTagParsing();
 });
 
 // ── Filter buttons ────────────────────────────────────────────
@@ -50,78 +52,186 @@ function timeAgo(dt) {
     return dt.toLocaleDateString();
 }
 
+// ── ROS timestamps (nanoseconds → browser local time) ─────────
+function formatRosTimes() {
+    document.querySelectorAll('[data-ros-time]').forEach(el => {
+        const ns = el.dataset.rosTime;
+        if (!ns) return;
+        const dt = new Date(Number(ns) / 1e6);
+        el.textContent = dt.toLocaleString(undefined, {
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+        });
+        el.title = 'Recording start: ' + dt.toLocaleString();
+    });
+}
+
 // ── Tag filter state ──────────────────────────────────────────
 const _activeTags = new Set();
-let _tagMode = 'or'; // 'or' | 'and'
+let _tagMode = 'or';
 
-function filterByTag(tag) {
-    if (_activeTags.has(tag)) {
-        _activeTags.delete(tag);
-    } else {
-        _activeTags.add(tag);
+// ── Chip rendering ────────────────────────────────────────────
+function _renderChips() {
+    const chips = document.getElementById('active-tag-chips');
+    const row = document.getElementById('active-tag-row');
+    if (!chips) return;
+    chips.innerHTML = '';
+    for (const tag of _activeTags) {
+        const chip = document.createElement('span');
+        chip.className = 'tag-filter-chip';
+        chip.dataset.tag = tag;
+        chip.innerHTML = `${_esc(tag)}<button class="tag-filter-chip__remove"
+            onmousedown="event.preventDefault(); removeTagFilter('${_esc(tag)}')" title="Remove">×</button>`;
+        chips.appendChild(chip);
     }
+    if (row) row.style.display = _activeTags.size > 0 ? 'flex' : 'none';
+    const bar = document.getElementById('tag-mode-bar');
+    if (bar) bar.style.display = _activeTags.size >= 2 ? 'flex' : 'none';
+}
+
+// ── Tag filter actions ────────────────────────────────────────
+function addTagFilter(tag) {
+    tag = (tag || '').trim();
+    if (!tag || _activeTags.has(tag)) return;
+    _activeTags.add(tag);
+    const input = document.getElementById('tag-filter-input');
+    if (input) input.value = '';
+    _hideAc();
+    _renderChips();
     refreshGrid();
     highlightActiveTags();
-    updateTagModeBar();
+}
+
+function removeTagFilter(tag) {
+    _activeTags.delete(tag);
+    _renderChips();
+    refreshGrid();
+    highlightActiveTags();
+}
+
+function clearTagFilters() {
+    _activeTags.clear();
+    _renderChips();
+    refreshGrid();
+    highlightActiveTags();
+}
+
+function filterByTag(tag) {
+    if (_activeTags.has(tag)) removeTagFilter(tag);
+    else addTagFilter(tag);
 }
 
 function setTagMode(mode) {
     _tagMode = mode;
-    document.getElementById('btn-tag-or').classList.toggle('active', mode === 'or');
-    document.getElementById('btn-tag-and').classList.toggle('active', mode === 'and');
+    document.getElementById('btn-tag-or')?.classList.toggle('active', mode === 'or');
+    document.getElementById('btn-tag-and')?.classList.toggle('active', mode === 'and');
     refreshGrid();
 }
 
+// ── Search bar #tag parsing ───────────────────────────────────
+function initSearchTagParsing() {
+    const searchInput = document.querySelector('input[name="q"]');
+    if (!searchInput) return;
+    searchInput.addEventListener('input', () => {
+        const val = searchInput.value;
+        let changed = false;
+        const newVal = val.replace(/#(\S+)\s/g, (match, tag) => {
+            addTagFilter(tag);
+            changed = true;
+            return '';
+        });
+        if (changed) searchInput.value = newVal.trimStart();
+    });
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = searchInput.value;
+            const tagMatch = val.match(/#(\S+)$/);
+            if (tagMatch) {
+                e.preventDefault();
+                searchInput.value = val.replace(/#\S+$/, '').trim();
+                addTagFilter(tagMatch[1]);
+            }
+        }
+    });
+}
+
+// ── Multi-team filter ─────────────────────────────────────────
+const _activeTeams = new Set();
+
+function toggleTeamFilter(btn) {
+    const team = btn.dataset.team;
+    if (team === '') {
+        _activeTeams.clear();
+    } else {
+        if (_activeTeams.has(team)) _activeTeams.delete(team);
+        else _activeTeams.add(team);
+    }
+    document.querySelectorAll('.filter-btn[data-team]').forEach(b => {
+        if (b.dataset.team === '') b.classList.toggle('active', _activeTeams.size === 0);
+        else b.classList.toggle('active', _activeTeams.has(b.dataset.team));
+    });
+    document.getElementById('filter-team').value = [..._activeTeams].join(',');
+    refreshGrid();
+}
+
+// ── Grid refresh ──────────────────────────────────────────────
 function refreshGrid() {
     const params = new URLSearchParams();
     const q = document.querySelector('input[name="q"]')?.value;
     if (q) params.set('q', q);
     const status = document.getElementById('filter-status')?.value;
     const format = document.getElementById('filter-format')?.value;
+    const drafts = document.getElementById('filter-drafts')?.value;
     if (status) params.set('status', status);
     if (format) params.set('format', format);
+    if (drafts && drafts !== 'false') params.set('drafts', drafts);
+    if (_activeTeams.size > 0) params.set('team', [..._activeTeams].join(','));
     if (_activeTags.size > 0) {
         params.set('tags', [..._activeTags].join(','));
         params.set('tag_mode', _tagMode);
     }
     htmx.ajax('GET', '/api/bags/grid-partial?' + params.toString(), {
-        target: '#bag-grid',
-        swap: 'innerHTML',
+        target: '#bag-grid', swap: 'innerHTML',
     });
 }
 
 function highlightActiveTags() {
-    document.querySelectorAll('.tag--clickable').forEach(btn => {
+    document.querySelectorAll('.tag--clickable[data-tag]').forEach(btn => {
         btn.classList.toggle('tag--active', _activeTags.has(btn.dataset.tag));
     });
 }
 
-function updateTagModeBar() {
-    const bar = document.getElementById('tag-mode-bar');
-    if (!bar) return;
-    if (_activeTags.size >= 2) {
-        bar.style.display = '';
-        bar.classList.remove('hidden');
-    } else {
-        bar.style.display = 'none';
-    }
-}
-
-// Inject active tags into every HTMX grid request (filter buttons, search bar)
+// Inject active tags + tag_mode + active teams into all HTMX grid requests
 document.addEventListener('htmx:configRequest', (e) => {
     if (!e.detail.path.includes('/api/bags/grid-partial')) return;
     if (_activeTags.size > 0) {
         e.detail.parameters['tags'] = [..._activeTags].join(',');
         e.detail.parameters['tag_mode'] = _tagMode;
     }
+    if (_activeTeams.size > 0) {
+        e.detail.parameters['team'] = [..._activeTeams].join(',');
+    } else {
+        delete e.detail.parameters['team'];
+    }
 });
 
-// Re-highlight after every grid swap
-document.addEventListener('htmx:afterSettle', highlightActiveTags);
+document.addEventListener('htmx:afterSettle', () => {
+    highlightActiveTags();
+    document.querySelectorAll('time[datetime]').forEach(el => {
+        const dt = new Date(el.getAttribute('datetime'));
+        if (!isNaN(dt)) { el.textContent = timeAgo(dt); el.title = dt.toLocaleString(); }
+    });
+    formatRosTimes();
+});
+
+function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 // ── Send bag to NAS ───────────────────────────────────────────
 let _nasPopoverBagId = null;
 let _nasDefaultPath = null;
+const _nasActiveSends = new Map();  // bagId → { taskId, es, cancelBtn }
 
 async function _getNasDefaultPath() {
     if (_nasDefaultPath !== null) return _nasDefaultPath;
@@ -209,32 +319,55 @@ async function _doSendToNas(bagId, destPath) {
         }
         const { task_id } = await r.json();
 
+        // Add cancel button to progress area
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn--ghost btn--sm';
+        cancelBtn.style.cssText = 'margin-top:4px;font-size:11px';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', () => cancelNasSend(bagId));
+        if (progressEl) progressEl.appendChild(cancelBtn);
+
         const es = new EventSource(`/nas/task/${task_id}/stream`);
+        _nasActiveSends.set(bagId, { taskId: task_id, es, cancelBtn });
+
+        const _cleanupSend = (finalText, btnText) => {
+            es.close();
+            const s = _nasActiveSends.get(bagId);
+            if (s) { s.cancelBtn?.remove(); _nasActiveSends.delete(bagId); }
+            if (stepEl) stepEl.textContent = finalText;
+            if (btn) { btn.disabled = false; btn.textContent = btnText; }
+        };
+
         es.onmessage = (e) => {
             const data = JSON.parse(e.data);
             if (barEl) barEl.style.width = (data.pct || 0) + '%';
             if (stepEl) stepEl.textContent = data.step || data.state;
 
             if (data.state === 'SUCCESS') {
-                es.close();
                 if (barEl) barEl.style.width = '100%';
-                if (stepEl) stepEl.textContent = '✓ Sent to NAS';
-                if (btn) { btn.disabled = false; btn.textContent = '✓ NAS'; }
+                _cleanupSend('✓ Sent to NAS', '✓ NAS');
             } else if (data.state === 'FAILURE') {
-                es.close();
-                if (stepEl) stepEl.textContent = '✗ NAS upload failed';
-                if (btn) { btn.disabled = false; btn.textContent = '→ NAS'; }
+                _cleanupSend('✗ NAS upload failed', '→ NAS');
             }
         };
-        es.onerror = () => {
-            es.close();
-            if (stepEl) stepEl.textContent = '✗ Connection lost';
-            if (btn) { btn.disabled = false; btn.textContent = '→ NAS'; }
-        };
+        es.onerror = () => _cleanupSend('✗ Connection lost', '→ NAS');
     } catch {
         if (stepEl) stepEl.textContent = '✗ Error';
         if (btn) { btn.disabled = false; btn.textContent = '→ NAS'; }
     }
+}
+
+async function cancelNasSend(bagId) {
+    const send = _nasActiveSends.get(bagId);
+    if (!send) return;
+    if (send.es) send.es.close();
+    _nasActiveSends.delete(bagId);
+    if (send.cancelBtn) send.cancelBtn.remove();
+    try { await fetch(`/nas/task/${send.taskId}`, { method: 'DELETE' }); } catch {}
+    const btn = document.getElementById(`nas-btn-${bagId}`);
+    if (btn) { btn.disabled = false; btn.textContent = '→ NAS'; }
+    const stepEl = document.getElementById(`nas-step-${bagId}`);
+    if (stepEl) stepEl.textContent = 'Cancelled';
 }
 
 // ── Publish a draft bag ───────────────────────────────────────

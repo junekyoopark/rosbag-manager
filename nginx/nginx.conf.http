@@ -9,6 +9,17 @@ http {
     client_body_timeout  3600s;
     send_timeout         3600s;
 
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_min_length 1024;
+    gzip_types
+        text/plain text/css text/javascript
+        application/javascript application/json
+        application/wasm
+        font/woff2 font/woff;
+
     upstream backend {
         server backend:8000;
         keepalive 32;
@@ -34,11 +45,10 @@ http {
             types { application/octet-stream rrd; }
         }
 
-        # Thumbnails
+        # Thumbnails — no-cache so updated thumbnails show immediately on refresh
         location /thumbnails/ {
             alias /data/thumb/;
-            add_header Cache-Control "public, max-age=86400";
-            expires 1d;
+            add_header Cache-Control "no-cache";
         }
 
         # SSE endpoints — must not buffer

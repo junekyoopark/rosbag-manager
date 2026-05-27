@@ -5,7 +5,8 @@ celery_app = Celery(
     "rosbag_worker",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["worker.tasks.convert", "worker.tasks.introspect", "worker.tasks.nas_upload"],
+    include=["worker.tasks.convert", "worker.tasks.introspect",
+             "worker.tasks.nas_upload", "worker.tasks.nas_import"],
 )
 
 celery_app.conf.update(

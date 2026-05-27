@@ -21,6 +21,76 @@ def decrypt_password(encrypted: str) -> str:
     return _fernet().decrypt(encrypted.encode()).decode()
 
 
+_BAG_EXTENSIONS = {".bag", ".mcap", ".db3", ".zip"}
+
+
+def synology_list_dir(dsm_url: str, sid: str, path: str, verify_ssl: bool) -> list[dict]:
+    """Return subdirs and bag files at a NAS path."""
+    with _client(verify_ssl) as client:
+        r = client.get(
+            f"{dsm_url}/webapi/entry.cgi",
+            params={
+                "api": "SYNO.FileStation.List",
+                "version": "2",
+                "method": "list",
+                "folder_path": path,
+                "filetype": "both",
+                "sort_by": "name",
+                "sort_direction": "ASC",
+                "additional": '["size","time"]',
+                "limit": 1000,
+                "_sid": sid,
+            },
+        )
+    data = r.json()
+    if not data.get("success"):
+        code = data.get("error", {}).get("code", "?")
+        raise RuntimeError(f"Cannot list NAS folder (code {code})")
+    items = data.get("data", {}).get("files", [])
+    result = []
+    for item in items:
+        name = item.get("name", "")
+        is_dir = item.get("isdir", False)
+        full_path = item.get("path", "")
+        additional = item.get("additional", {})
+        size = additional.get("size", 0)
+        mtime = additional.get("time", {}).get("mtime", 0)
+        if is_dir or Path(name).suffix.lower() in _BAG_EXTENSIONS:
+            result.append({"name": name, "path": full_path,
+                           "is_dir": is_dir, "size": size, "mtime": mtime})
+    return result
+
+
+def synology_download(
+    dsm_url: str,
+    sid: str,
+    nas_path: str,
+    dest_path: Path,
+    verify_ssl: bool,
+    progress_cb=None,
+) -> None:
+    """Stream a file from NAS to a local path with optional progress callback."""
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    with _client(verify_ssl) as client:
+        with client.stream("GET", f"{dsm_url}/webapi/entry.cgi", params={
+            "api": "SYNO.FileStation.Download",
+            "version": "2",
+            "method": "download",
+            "path": nas_path,
+            "mode": "download",
+            "_sid": sid,
+        }) as r:
+            r.raise_for_status()
+            total = int(r.headers.get("content-length", 0))
+            downloaded = 0
+            with open(dest_path, "wb") as f:
+                for chunk in r.iter_bytes(chunk_size=1024 * 1024):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if progress_cb and total:
+                        progress_cb(downloaded, total)
+
+
 _UPLOAD_ERRORS: dict[int, str] = {
     105: "Permission denied — the account does not have access to this path",
     406: "Need admin privilege to upload to this system folder",

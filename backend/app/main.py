@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.exceptions import HTTPException, RequestValidationError
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -17,7 +18,7 @@ from app.routers import nas as nas_router
 from app.config import settings
 
 # Paths that don't require authentication
-_PUBLIC_PREFIXES = ("/login", "/auth/", "/static/", "/healthz", "/favicon")
+_PUBLIC_PREFIXES = ("/login", "/auth/", "/static/", "/healthz", "/favicon", "/bags/local/temp-rrd/")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -33,7 +34,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
             try:
                 async with AsyncSessionLocal() as db:
                     user = await get_user_by_id(db, uuid.UUID(user_id_str))
-                    request.state.current_user = user if (user and user.is_active) else None
+                    if user and user.is_active:
+                        request.state.current_user = user
+                    else:
+                        request.session.pop("user_id", None)
             except Exception:
                 request.session.pop("user_id", None)
 
@@ -68,7 +72,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="USRG ROSBAG Manager", lifespan=lifespan)
+app = FastAPI(title="ROSBAG Manager", lifespan=lifespan)
 
 app.add_middleware(AuthMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY, https_only=False)
@@ -146,11 +150,20 @@ def format_number(n) -> str:
     return f"{int(n):,}"
 
 
+def format_ros_time(ns: int) -> str:
+    if ns is None:
+        return ""
+    from datetime import datetime, timezone
+    dt = datetime.fromtimestamp(ns / 1e9, tz=timezone.utc).astimezone()
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 templates.env.filters["format_duration"] = format_duration
 templates.env.filters["format_bytes"] = format_bytes
 templates.env.filters["timeago"] = timeago
 templates.env.filters["topic_category"] = topic_category
 templates.env.filters["format_number"] = format_number
+templates.env.filters["format_ros_time"] = format_ros_time
 
 # Share templates instance with routers that render partials
 viewer.templates = templates
@@ -160,39 +173,103 @@ admin_router.templates = templates
 nas_router.templates = templates
 
 
+def _is_api(request: Request) -> bool:
+    return request.url.path.startswith("/api/") or request.url.path.startswith("/nas/")
+
+
+def _error_page(request: Request, code: int, title: str, message: str) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request,
+        "error.html",
+        {"code": code, "title": title, "message": message},
+        status_code=code,
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if _is_api(request):
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    if exc.status_code == 404:
+        return _error_page(request, 404, "Page not found",
+                           "The page you're looking for doesn't exist or has been moved.")
+    if exc.status_code in (401, 403):
+        # Obfuscate permission errors — look identical to 404
+        return _error_page(request, 404, "Page not found",
+                           "The page you're looking for doesn't exist or has been moved.")
+    if exc.status_code == 422:
+        return _error_page(request, 422, "Invalid request", "The request could not be processed.")
+    return _error_page(request, exc.status_code, "Something went wrong",
+                       "An unexpected error occurred. Please try again later.")
+
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc: Exception):
+    if _is_api(request):
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    return _error_page(request, 404, "Page not found",
+                       "The page you're looking for doesn't exist or has been moved.")
+
+
+@app.exception_handler(500)
+async def server_error_handler(request: Request, exc: Exception):
+    if _is_api(request):
+        return JSONResponse({"detail": "Internal server error"}, status_code=500)
+    return _error_page(request, 500, "Something went wrong",
+                       "An unexpected error occurred. Please try again later.")
+
+
 @app.get("/", response_class=HTMLResponse)
 async def library_page(request: Request):
     from app.db.session import AsyncSessionLocal
     from app.services.bag_service import list_bags
 
+    from sqlalchemy import select as _sel
+    from app.models.team import Team
     async with AsyncSessionLocal() as db:
         total, bags_list = await list_bags(db, None, None, None, "or", None, "created_at_desc", 20, 0)
+        teams_result = await db.execute(_sel(Team.name).order_by(Team.name))
+        teams = [r[0] for r in teams_result.all()]
 
     user = getattr(request.state, "current_user", None)
     can_nas = bool(user and (user.role == "admin" or getattr(user, "can_upload_to_nas", False)))
+    can_import = bool(user and (user.role == "admin" or getattr(user, "can_import_from_nas", False)))
+    nas_ready = False
+    if can_import:
+        from app.models.nas_config import NASConfig
+        async with AsyncSessionLocal() as db2:
+            nas_cfg = await db2.get(NASConfig, 1)
+        nas_ready = bool(nas_cfg and nas_cfg.enabled and nas_cfg.dsm_url)
     return templates.TemplateResponse(
         request,
         "library.html",
-        {"bags": bags_list, "total": total, "rerun_version": settings.RERUN_VERSION, "can_nas": can_nas},
+        {"bags": bags_list, "total": total, "rerun_version": settings.RERUN_VERSION,
+         "can_nas": can_nas, "teams": teams, "nas_ready": nas_ready},
     )
 
 
 @app.get("/upload", response_class=HTMLResponse)
 async def upload_page(request: Request):
     user = getattr(request.state, "current_user", None)
-    if not user or user.role != "admin":
-        return RedirectResponse(url="/", status_code=303)
+    if not user or user.role not in ("admin", "user"):
+        raise HTTPException(403)
+    from sqlalchemy import select as _sel
+    from app.models.team import Team
+    from app.db.session import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        teams_result = await db.execute(_sel(Team.name).order_by(Team.name))
+        teams = [r[0] for r in teams_result.all()]
     return templates.TemplateResponse(
         request,
         "upload.html",
-        {"max_size_gb": settings.MAX_UPLOAD_SIZE_GB},
+        {"max_size_gb": settings.MAX_UPLOAD_SIZE_GB, "teams": teams, "user_team": user.team or ""},
     )
 
 
-@app.get("/info", response_class=HTMLResponse)
-async def info_page(request: Request):
+@app.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request):
     return templates.TemplateResponse(
         request,
-        "info.html",
+        "help.html",
         {"max_size_gb": settings.MAX_UPLOAD_SIZE_GB, "rerun_version": settings.RERUN_VERSION},
     )

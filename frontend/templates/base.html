@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}USRG ROSBAG Manager{% endblock %}</title>
+    <title>{% block title %}ROSBAG Manager{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/main.css">
     {% block extra_css %}{% endblock %}
     <script src="/static/vendor/htmx/htmx.min.js" defer></script>
@@ -13,7 +13,7 @@
     <a href="/" class="navbar__brand">
         <span class="navbar__brand-dot"></span>
         <div class="navbar__brand-text">
-            <span class="navbar__brand-title">USRG ROSBAG Manager</span>
+            <span class="navbar__brand-title">ROSBAG Manager</span>
             <span class="navbar__brand-sub">by JKP</span>
         </div>
     </a>
@@ -27,14 +27,14 @@
         <input type="search" name="q" placeholder="Search bags, tags…"
                hx-get="/api/bags/grid-partial"
                hx-trigger="input changed delay:300ms"
-               hx-include="#filter-status, #filter-format"
+               hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team"
                hx-target="#bag-grid"
                hx-push-url="false"
                onkeydown="if(event.key==='Enter')event.preventDefault()">
     </div>
     <a href="/bags/local" class="btn btn--secondary btn--sm">Local RRD</a>
     {% set _user = request.state.current_user if request.state is defined else none %}
-    {% if _user and _user.role == 'admin' %}
+    {% if _user and _user.role in ('admin', 'user') %}
     <a href="/upload" class="btn btn--primary btn--sm">Upload</a>
     {% endif %}
     {% if _user %}
@@ -48,7 +48,7 @@
             </svg>
         </summary>
         <div class="user-menu__dropdown">
-            <a href="/info" class="user-menu__item">Info</a>
+            <a href="/help" class="user-menu__item">Help</a>
             {% if _user.role == 'admin' %}
             <a href="/admin/users" class="user-menu__item">User management</a>
             <a href="/nas" class="user-menu__item">NAS settings</a>
@@ -62,7 +62,9 @@
     {% endif %}
     {% endblock %}
 </nav>
+<div class="page-content">
 {% block content %}{% endblock %}
+</div>
 {% block scripts %}{% endblock %}
 </body>
 </html>

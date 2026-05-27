@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — ROSBAG Manager{% endblock %}
+
+{% block nav_extra %}{% endblock %}
+
+{% block content %}
+<div style="
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: calc(100vh - var(--nav-height));
+    gap: 16px;
+    text-align: center;
+    padding: 40px 24px;
+">
+    <div style="
+        font-size: 96px;
+        font-weight: 800;
+        color: var(--bg-elevated);
+        line-height: 1;
+        letter-spacing: -4px;
+        user-select: none;
+    ">{{ code }}</div>
+    <h1 style="font-size: 22px; font-weight: 700; color: var(--text-primary); margin: 0;">{{ title }}</h1>
+    <p style="font-size: 14px; color: var(--text-secondary); max-width: 360px; margin: 0;">{{ message }}</p>
+    <a href="/" class="btn btn--primary" style="margin-top: 8px;">← Back to library</a>
+</div>
+{% endblock %}

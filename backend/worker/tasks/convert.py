@@ -154,6 +154,9 @@ def ros2_db3_to_mcap(bag_path: Path, bag_id: str) -> Path:
 
 
 def mcap_to_rrd(mcap_path: Path, bag_id: str) -> Path:
+    import logging
+    log = logging.getLogger(__name__)
+
     out_rrd = Path(settings.RRD_DIR) / f"{bag_id}.rrd"
     out_rrd.parent.mkdir(parents=True, exist_ok=True)
 
@@ -165,6 +168,12 @@ def mcap_to_rrd(mcap_path: Path, bag_id: str) -> Path:
         "--recording-id", bag_id,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
+
+    # Always surface rerun's output so skipped topics are visible in worker logs
+    if result.stdout.strip():
+        log.info("rerun mcap convert stdout [%s]:\n%s", bag_id, result.stdout.strip())
+    if result.stderr.strip():
+        log.warning("rerun mcap convert stderr [%s]:\n%s", bag_id, result.stderr.strip())
 
     if result.returncode != 0:
         raise RuntimeError(

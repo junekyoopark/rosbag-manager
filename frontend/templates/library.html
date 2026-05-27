@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Library — USRG ROSBAG Manager{% endblock %}
+{% block title %}Library — ROSBAG Manager{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="/static/css/library.css">
@@ -11,60 +11,77 @@
 <input type="hidden" id="filter-status" name="status" value="">
 <input type="hidden" id="filter-format" name="format" value="">
 <input type="hidden" id="filter-drafts" name="drafts" value="false">
+<input type="hidden" id="filter-team" name="team" value="">
 
 <div class="filter-bar">
     <span class="filter-bar__label">Status:</span>
     <button class="filter-btn active" data-group="status" data-field="filter-status" data-value=""
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">All</button>
     <button class="filter-btn" data-group="status" data-field="filter-status" data-value="ready"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">● Ready</button>
     <button class="filter-btn" data-group="status" data-field="filter-status" data-value="converting"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">⟳ Converting</button>
     <button class="filter-btn" data-group="status" data-field="filter-status" data-value="error"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">! Error</button>
 
     <span class="filter-bar__label" style="margin-left:8px">Format:</span>
     <button class="filter-btn active" data-group="format" data-field="filter-format" data-value=""
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">All</button>
     <button class="filter-btn" data-group="format" data-field="filter-format" data-value="ros1"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">ROS1</button>
     <button class="filter-btn" data-group="format" data-field="filter-format" data-value="ros2"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">ROS2</button>
 
     {% set _u = request.state.current_user if request.state is defined else none %}
+    {% if teams %}
+    <span class="filter-bar__label" style="margin-left:8px">Team:</span>
+    <button class="filter-btn active" data-team="" onclick="toggleTeamFilter(this)">All</button>
+    {% for t in teams %}
+    <button class="filter-btn" data-team="{{ t }}" onclick="toggleTeamFilter(this)">{{ t }}</button>
+    {% endfor %}
+    {% endif %}
     {% if _u and _u.role == 'admin' %}
     <span class="filter-bar__label" style="margin-left:8px">View:</span>
     <button class="filter-btn" id="btn-drafts"
             onclick="toggleDraftsMode(this)"
             title="Show bags awaiting publish">Drafts</button>
     {% endif %}
+    {% if _u and (_u.role == 'admin' or _u.can_import_from_nas) %}
+    <button class="filter-btn" style="margin-left:auto{% if nas_ready %};border-color:#16a34a;color:#16a34a{% endif %}"
+            onclick="openNasImport()"
+            title="Import a bag from NAS into this server">⬇ Import from NAS</button>
+    {% endif %}
 </div>
 
-<div id="tag-mode-bar" class="hidden" style="display:none">
-    <span class="filter-bar__label">Tag match:</span>
-    <button class="filter-btn" id="btn-tag-or" onclick="setTagMode('or')">Any (OR)</button>
-    <button class="filter-btn active" id="btn-tag-and" onclick="setTagMode('and')">All (AND)</button>
+<div id="active-tag-row" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Tags:</span>
+    <div id="active-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+    <div id="tag-mode-bar" style="display:none;align-items:center;gap:4px">
+        <span class="filter-bar__label">Match:</span>
+        <button class="filter-btn" id="btn-tag-or" onclick="setTagMode('or')">Any</button>
+        <button class="filter-btn active" id="btn-tag-and" onclick="setTagMode('and')">All</button>
+    </div>
 </div>
 
 <div id="bag-grid" class="bag-grid">
@@ -109,6 +126,109 @@
   </div>
 </div>
 
+<!-- Thumbnail picker modal -->
+<div id="thumbnail-modal" class="modal-backdrop hidden" onclick="if(event.target===this)closeThumbnailModal()">
+    <div class="modal thumb-modal">
+        <div class="modal__header">
+            <span class="modal__title">Edit thumbnail</span>
+            <button class="modal__close" onclick="closeThumbnailModal()">✕</button>
+        </div>
+        <div id="thumb-no-frames" style="display:none;color:var(--text-muted);font-size:13px">
+            No preview frames available for this bag (no image topics found).
+        </div>
+        <div id="thumb-frames-section">
+            <div class="modal__label" style="margin-bottom:8px">Select a frame</div>
+            <div class="thumb-grid" id="thumb-frame-grid"></div>
+        </div>
+        <div class="thumb-upload-row">
+            <span class="thumb-upload-label">Upload custom:</span>
+            <label class="btn btn--secondary btn--sm" style="cursor:pointer">
+                Choose file
+                <input type="file" id="thumb-upload-input" accept="image/*" style="display:none">
+            </label>
+            <span class="thumb-upload-filename" id="thumb-upload-filename">No file chosen</span>
+        </div>
+        <div style="padding-top:4px;border-top:1px solid var(--border);margin-top:4px;display:flex;justify-content:flex-end">
+            <button class="btn btn--secondary btn--sm" id="thumb-reextract-btn" onclick="reextractFrames()">
+                ↺ Re-extract frames
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- NAS Import modal -->
+{% if _u and (_u.role == 'admin' or _u.can_import_from_nas) %}
+<div id="nas-import-modal" class="modal-backdrop hidden" onclick="if(event.target===this)closeNasImport()">
+    <div class="modal nas-import-modal">
+        <div class="modal__header">
+            <span class="modal__title">Import from NAS</span>
+            <button class="modal__close" onclick="closeNasImport()">✕</button>
+        </div>
+
+        <!-- ── Phase 1: browse & select ── -->
+        <div id="nas-browse-phase">
+            <div id="nas-breadcrumb" class="nas-breadcrumb"></div>
+            <div id="nas-file-list" class="nas-file-list">
+                <div class="nas-loading">Loading…</div>
+            </div>
+
+            <!-- Selection bar (visible when ≥1 file checked) -->
+            <div id="nas-selection-bar" style="display:none">
+                <div class="nas-form-divider"></div>
+                {% if teams %}
+                <div class="modal__field" style="margin-top:8px">
+                    <label class="modal__label">Team (all bags)</label>
+                    <div style="display:flex;flex-wrap:wrap;gap:6px" id="nas-import-team-group">
+                        {% for t in teams %}
+                        <button type="button" class="tag tag--clickable team-toggle" data-team="{{ t }}"
+                                onclick="this.classList.toggle('tag--active')">{{ t }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="modal__field">
+                    <label class="modal__label">Tags (all bags)</label>
+                    <div class="tags-input" id="nas-import-tag-chips"
+                         onclick="document.getElementById('nas-import-tag-input').focus()">
+                        <input type="text" id="nas-import-tag-input" placeholder="Add tag…">
+                    </div>
+                </div>
+                <div class="modal__footer">
+                    <span id="nas-selection-count" style="font-size:13px;color:var(--text-secondary)"></span>
+                    <button class="btn btn--primary btn--sm" id="nas-import-confirm-btn"
+                            onclick="confirmNasImport()">Import</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Phase 2: import queue ── -->
+        <div id="nas-queue-phase" style="display:none">
+            <div id="nas-queue-list" class="nas-queue-list"></div>
+            <div class="modal__footer" style="margin-top:12px">
+                <button class="btn btn--secondary btn--sm" onclick="closeNasImport()">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- NAS Activity Panel (floating, persists after modal close) -->
+{% if _u and (_u.role == 'admin' or _u.can_import_from_nas) %}
+<div id="nas-activity-panel" class="nas-activity-panel" style="display:none">
+    <div class="nas-activity-panel__header" onclick="toggleNasActivityPanel()">
+        <span class="nas-activity-panel__title">NAS Imports</span>
+        <span id="nas-activity-count" class="nas-activity-panel__count"></span>
+        <button id="nas-activity-close" class="nas-activity-panel__close"
+                style="display:none"
+                onclick="event.stopPropagation(); closeNasActivityPanel()">✕</button>
+        <span id="nas-activity-toggle" class="nas-activity-panel__toggle">−</span>
+    </div>
+    <div id="nas-activity-body" class="nas-activity-panel__body">
+        <div id="nas-activity-list" class="nas-queue-list"></div>
+    </div>
+</div>
+{% endif %}
+
 <!-- Edit modal (shared) -->
 <div id="edit-modal" class="modal-backdrop hidden" onclick="if(event.target===this)closeEditModal()">
     <div class="modal">
@@ -124,6 +244,17 @@
             <label class="modal__label">Description</label>
             <input class="modal__input" id="edit-desc" type="text" placeholder="Optional…">
         </div>
+        {% if teams %}
+        <div class="modal__field">
+            <label class="modal__label">Team</label>
+            <div style="display:flex;flex-wrap:wrap;gap:6px" id="edit-team-group">
+                {% for t in teams %}
+                <button type="button" class="tag tag--clickable team-toggle" data-team="{{ t }}"
+                        onclick="toggleEditTeam(this)">{{ t }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         <div class="modal__field">
             <label class="modal__label">Tags</label>
             <div class="tags-input" id="edit-tags-container"
@@ -140,18 +271,209 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/library.js"></script>
 <script>
+const _nasUserIsAdmin = {{ 'true' if _u and _u.role == 'admin' else 'false' }};
+const _nasTeams = {{ teams | tojson }};
+</script>
+<script src="/static/js/library.js"></script>
+<script src="/static/js/nas_import.js"></script>
+<script>
+// ── Sprite helpers ─────────────────────────────────────────────
+const SPRITE_COLS = 5;
+
+function _spriteBgPos(frameIndex, totalFrames, cols) {
+    const col = frameIndex % cols;
+    const row = Math.floor(frameIndex / cols);
+    const rows = Math.ceil(totalFrames / cols);
+    const x = (cols  <= 1 || col  === 0) ? '0%' : `${(col  / (cols  - 1)) * 100}%`;
+    const y = (rows  <= 1 || row  === 0) ? '0%' : `${(row  / (rows  - 1)) * 100}%`;
+    return `${x} ${y}`;
+}
+
+// ── Thumbnail editor ───────────────────────────────────────────
+let _thumbBagId = null;
+
+function openThumbnailModal(bagId, frameCount) {
+    _thumbBagId = bagId;
+    document.getElementById('thumb-upload-filename').textContent = 'No file chosen';
+    document.getElementById('thumb-upload-input').value = '';
+
+    const grid = document.getElementById('thumb-frame-grid');
+    const section = document.getElementById('thumb-frames-section');
+    const noFrames = document.getElementById('thumb-no-frames');
+
+    grid.innerHTML = '';
+    if (frameCount > 0) {
+        section.style.display = '';
+        noFrames.style.display = 'none';
+        const spriteUrl = `/thumbnails/${bagId}_sprite.jpg`;
+        const spriteRows = Math.ceil(frameCount / SPRITE_COLS);
+        for (let i = 0; i < frameCount; i++) {
+            const div = document.createElement('div');
+            div.className = 'thumb-candidate';
+            div.style.backgroundImage = `url(${spriteUrl})`;
+            div.style.backgroundSize = `${SPRITE_COLS * 100}% ${spriteRows * 100}%`;
+            div.style.backgroundPosition = _spriteBgPos(i, frameCount, SPRITE_COLS);
+            div.dataset.index = i;
+            div.title = `Frame ${i + 1}`;
+            div.addEventListener('click', () => applyFrameThumbnail(bagId, i, div));
+            grid.appendChild(div);
+        }
+    } else {
+        section.style.display = 'none';
+        noFrames.style.display = '';
+    }
+    document.getElementById('thumbnail-modal').classList.remove('hidden');
+}
+
+function closeThumbnailModal() {
+    document.getElementById('thumbnail-modal').classList.add('hidden');
+    _thumbBagId = null;
+}
+
+async function reextractFrames() {
+    if (!_thumbBagId) return;
+    const btn = document.getElementById('thumb-reextract-btn');
+    btn.disabled = true;
+    btn.textContent = 'Queuing…';
+    try {
+        const r = await fetch(`/api/bags/${_thumbBagId}/thumbnail/reextract`, { method: 'POST' });
+        if (!r.ok) throw new Error();
+        btn.textContent = 'Queued! Reload page in a moment.';
+    } catch {
+        btn.textContent = 'Error — try again';
+        btn.disabled = false;
+    }
+}
+
+async function applyFrameThumbnail(bagId, index, el) {
+    document.querySelectorAll('.thumb-candidate').forEach(c => c.classList.remove('thumb-candidate--active'));
+    el.classList.add('thumb-candidate--active');
+    try {
+        const r = await fetch(`/api/bags/${bagId}/thumbnail/frame`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ frame_index: index }),
+        });
+        if (!r.ok) throw new Error();
+        _refreshCardThumb(bagId);
+        closeThumbnailModal();
+    } catch {
+        el.classList.remove('thumb-candidate--active');
+    }
+}
+
+document.getElementById('thumb-upload-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file || !_thumbBagId) return;
+    document.getElementById('thumb-upload-filename').textContent = file.name;
+    const bagId = _thumbBagId;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+        const r = await fetch(`/api/bags/${bagId}/thumbnail/upload`, {
+            method: 'POST',
+            body: formData,
+        });
+        if (!r.ok) throw new Error();
+        _refreshCardThumb(bagId);
+        closeThumbnailModal();
+    } catch {
+        document.getElementById('thumb-upload-filename').textContent = 'Upload failed';
+    }
+});
+
+function _refreshCardThumb(bagId) {
+    const img = document.querySelector(`.bag-card[data-bag-id="${bagId}"] .bag-card__thumb img`);
+    if (img) img.src = `/thumbnails/${bagId}.jpg?t=${Date.now()}`;
+}
+
+// ── Hover preview (sprite sheet) ───────────────────────────────
+{
+    let _hoverThumb = null;
+    let _hoverOverlay = null;
+    let _hoverInterval = null;
+
+    function _getOrCreateOverlay(thumb) {
+        let ov = thumb.querySelector('.bag-card__sprite-overlay');
+        if (!ov) {
+            ov = document.createElement('div');
+            ov.className = 'bag-card__sprite-overlay';
+            thumb.appendChild(ov);
+        }
+        return ov;
+    }
+
+    function _startPreview(img) {
+        const thumb = img.closest('.bag-card__thumb');
+        if (!thumb || _hoverThumb === thumb) return;
+        _stopPreview();
+        _hoverThumb = thumb;
+
+        const spriteUrl = img.dataset.sprite;
+        const count = parseInt(img.dataset.frames);
+        const cols = parseInt(img.dataset.cols || SPRITE_COLS);
+
+        const rows = Math.ceil(count / cols);
+        const ov = _getOrCreateOverlay(thumb);
+        ov.style.backgroundImage = `url(${spriteUrl})`;
+        ov.style.backgroundSize = `${cols * 100}% ${rows * 100}%`;
+        ov.style.backgroundPosition = _spriteBgPos(0, count, cols);
+        ov.style.display = 'block';
+        _hoverOverlay = ov;
+
+        thumb.closest('.bag-card')?.classList.add('bag-card--previewing');
+
+        let frame = 0;
+        _hoverInterval = setInterval(() => {
+            frame = (frame + 1) % count;
+            ov.style.backgroundPosition = _spriteBgPos(frame, count, cols);
+        }, 100);
+    }
+
+    function _stopPreview() {
+        if (_hoverInterval) { clearInterval(_hoverInterval); _hoverInterval = null; }
+        if (_hoverOverlay) { _hoverOverlay.style.display = 'none'; _hoverOverlay = null; }
+        if (_hoverThumb) {
+            _hoverThumb.closest('.bag-card')?.classList.remove('bag-card--previewing');
+            _hoverThumb = null;
+        }
+    }
+
+    document.addEventListener('mouseover', (e) => {
+        const img = e.target.closest?.('.bag-card__thumb img[data-sprite]');
+        if (img && parseInt(img.dataset.frames) > 1) _startPreview(img);
+    });
+
+    document.addEventListener('mouseout', (e) => {
+        if (!_hoverThumb) return;
+        const to = e.relatedTarget;
+        if (!_hoverThumb.contains(to)) _stopPreview();
+    });
+}
+
 // ── Edit modal ─────────────────────────────────────────────────
 let _editBagId = null;
 let _editTagValues = [];
 
-function openEditModal(bagId, name, desc, tags) {
+function toggleEditTeam(btn) {
+    btn.classList.toggle('tag--active');
+}
+
+function openEditModal(bagId, name, desc, tags, team) {
     _editBagId = bagId;
     _editTagValues = tags ? [...tags] : [];
+    const teamArr = Array.isArray(team) ? team : (team ? [team] : []);
 
     document.getElementById('edit-name').value = name || '';
     document.getElementById('edit-desc').value = desc || '';
+
+    const group = document.getElementById('edit-team-group');
+    if (group) {
+        group.querySelectorAll('.team-toggle').forEach(btn => {
+            btn.classList.toggle('tag--active', teamArr.includes(btn.dataset.team));
+        });
+    }
 
     const container = document.getElementById('edit-tags-container');
     const input = document.getElementById('edit-tag-input');
@@ -166,6 +488,9 @@ function openEditModal(bagId, name, desc, tags) {
 function closeEditModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     _editBagId = null;
+    const btn = document.getElementById('edit-save-btn');
+    btn.disabled = false;
+    btn.textContent = 'Save';
 }
 
 function _addEditChip(val) {
@@ -201,24 +526,29 @@ document.getElementById('edit-tag-input').addEventListener('keydown', (e) => {
 
 async function saveEdit() {
     if (!_editBagId) return;
+    const bagId = _editBagId;
     const btn = document.getElementById('edit-save-btn');
     btn.disabled = true;
     btn.textContent = 'Saving…';
 
     const name = document.getElementById('edit-name').value.trim();
     const desc = document.getElementById('edit-desc').value.trim() || null;
+    const group = document.getElementById('edit-team-group');
+    const teamArr = group
+        ? [...group.querySelectorAll('.tag--active')].map(b => b.dataset.team)
+        : [];
+    const team = teamArr.length ? teamArr : null;
 
     try {
-        const r = await fetch(`/api/bags/${_editBagId}`, {
+        const r = await fetch(`/api/bags/${bagId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description: desc, tags: _editTagValues }),
+            body: JSON.stringify({ name, description: desc, tags: _editTagValues, team }),
         });
         if (!r.ok) throw new Error(await r.text());
         closeEditModal();
-        // Refresh the card
-        htmx.ajax('GET', `/api/bags/${_editBagId}/card-partial`, {
-            target: `[data-bag-id="${_editBagId}"]`,
+        htmx.ajax('GET', `/api/bags/${bagId}/card-partial`, {
+            target: `[data-bag-id="${bagId}"]`,
             swap: 'outerHTML',
         });
     } catch {
@@ -233,16 +563,7 @@ function toggleDraftsMode(btn) {
     const isDrafts = draftsInput.value === 'true';
     draftsInput.value = isDrafts ? 'false' : 'true';
     btn.classList.toggle('active', !isDrafts);
-    htmx.ajax('GET', '/api/bags/grid-partial', {
-        target: '#bag-grid',
-        swap: 'innerHTML',
-        values: {
-            drafts: !isDrafts,
-            status: document.getElementById('filter-status').value,
-            format: document.getElementById('filter-format').value,
-            q: document.querySelector('[name="q"]')?.value || '',
-        },
-    });
+    refreshGrid();
 }
 
 function escHtml(str) {

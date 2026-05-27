@@ -1,10 +1,7 @@
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
-const nameInput = document.getElementById('name-input');
-const descInput = document.getElementById('desc-input');
 const queueList = document.getElementById('queue-list');
 const queueSection = document.getElementById('upload-queue');
-const submitBtn = document.getElementById('submit-btn');
 
 // ── Drag-and-drop ──────────────────────────────────────────────
 dropzone.addEventListener('click', () => fileInput.click());
@@ -28,49 +25,16 @@ fileInput.addEventListener('change', () => {
     fileInput.value = '';
 });
 
-submitBtn.addEventListener('click', () => fileInput.click());
-
-// ── Tags input ─────────────────────────────────────────────────
-const tagsContainer = document.getElementById('tags-container');
-const tagInput = document.getElementById('tag-input');
-let tagValues = [];
-
-tagInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ',') {
-        e.preventDefault();
-        addTag(tagInput.value.trim());
-    }
-    if (e.key === 'Backspace' && tagInput.value === '' && tagValues.length > 0) {
-        removeTag(tagValues[tagValues.length - 1]);
-    }
-});
-
-function addTag(val) {
-    if (!val || tagValues.includes(val)) return;
-    tagValues.push(val);
-    const chip = document.createElement('span');
-    chip.className = 'tag-chip';
-    chip.dataset.tag = val;
-    chip.innerHTML = `${val}<span class="tag-chip__remove" data-tag="${val}">×</span>`;
-    chip.querySelector('.tag-chip__remove').addEventListener('click', () => removeTag(val));
-    tagsContainer.insertBefore(chip, tagInput);
-    tagInput.value = '';
-}
-
-function removeTag(val) {
-    tagValues = tagValues.filter(t => t !== val);
-    const chip = tagsContainer.querySelector(`[data-tag="${CSS.escape(val)}"]`);
-    if (chip) chip.remove();
-}
-
 // ── Queue management ──────────────────────────────────────────
 let queueId = 0;
+const _tagInputs = {};
 
 function enqueueFile(file) {
     queueSection.style.display = 'block';
     const id = ++queueId;
     const item = createQueueItem(id, file.name);
     queueList.appendChild(item);
+    _initMetadataForm(id, file.name);
     uploadFile(file, id);
 }
 
@@ -87,8 +51,43 @@ function createQueueItem(id, filename) {
             <div class="progress-bar__fill" id="qi-bar-${id}" style="width:0%"></div>
         </div>
         <div class="queue-item__step" id="qi-step-${id}"></div>
+        <div id="qi-meta-${id}"></div>
     `;
     return el;
+}
+
+function _initMetadataForm(queueItemId, filename) {
+    const metaEl = document.getElementById(`qi-meta-${queueItemId}`);
+    if (!metaEl) return;
+
+    const defaultName = filename.replace(/\.[^.]+$/, '');
+    const teams = (typeof upload_teams !== 'undefined') ? upload_teams : [];
+    const userTeam = (typeof upload_user_team !== 'undefined' && upload_user_team) ? upload_user_team : '';
+    const teamsHtml = teams.length ? `
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="qi-teams-${queueItemId}">
+            ${teams.map(t => `<button type="button" class="tag tag--clickable team-toggle${t === userTeam ? ' tag--active' : ''}" data-team="${escHtml(t)}" onclick="this.classList.toggle('tag--active')">${escHtml(t)}</button>`).join('')}
+        </div>` : '';
+
+    metaEl.innerHTML = `
+        <div class="publish-form">
+            <input class="publish-form__input" type="text" id="qi-name-${queueItemId}"
+                   value="${escHtml(defaultName)}" placeholder="Name">
+            <input class="publish-form__input" type="text" id="qi-desc-${queueItemId}"
+                   placeholder="Description (optional)">
+            ${teamsHtml}
+            <div class="tags-input chip-input" id="qi-tags-${queueItemId}"
+                 onclick="this.querySelector('.chip-input__text').focus()">
+                <input class="chip-input__text" type="text" placeholder="Add tag…">
+            </div>
+            <div class="publish-form__actions" id="qi-actions-${queueItemId}" style="display:none">
+                <button class="btn btn--primary btn--sm" id="publish-btn-${queueItemId}">Publish</button>
+                <a href="/" class="btn btn--secondary btn--sm">View Library</a>
+            </div>
+        </div>
+    `;
+
+    const tagContainer = document.getElementById(`qi-tags-${queueItemId}`);
+    _tagInputs[queueItemId] = makeTagInput(tagContainer);
 }
 
 function setStatus(id, text) {
@@ -102,17 +101,14 @@ function setBar(id, pct) {
 }
 
 function setStep(id, text) {
-    const stepEl = document.getElementById(`qi-step-${id}`);
-    if (stepEl && typeof text === 'string') stepEl.textContent = text;
+    const el = document.getElementById(`qi-step-${id}`);
+    if (el) el.textContent = text;
 }
 
 // ── Upload + auto-convert ─────────────────────────────────────
 async function uploadFile(file, queueItemId) {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('name', nameInput.value.trim() || file.name.replace(/\.[^.]+$/, ''));
-    if (descInput.value.trim()) formData.append('description', descInput.value.trim());
-    if (tagValues.length) formData.append('tags', tagValues.join(','));
 
     setStatus(queueItemId, 'Uploading…');
 
@@ -132,6 +128,12 @@ async function uploadFile(file, queueItemId) {
                 const resp = JSON.parse(xhr.responseText);
                 setStatus(queueItemId, 'Converting…');
                 setBar(queueItemId, 0);
+                // Update name field with server-confirmed name if user hasn't edited it
+                const nameEl = document.getElementById(`qi-name-${queueItemId}`);
+                if (nameEl && nameEl.value === nameEl.defaultValue) {
+                    nameEl.value = resp.name;
+                    nameEl.defaultValue = resp.name;
+                }
                 watchConversionProgress(resp.job_id, queueItemId, resp.id, resp.name);
                 resolve(resp);
             } else {
@@ -165,8 +167,9 @@ function watchConversionProgress(jobId, queueItemId, bagId, bagName) {
             evtSource.close();
             setStatus(queueItemId, '✓ Converted');
             setBar(queueItemId, 100);
+            setStep(queueItemId, '');
             document.getElementById(`qi-${queueItemId}`)?.classList.add('queue-item--done');
-            showPublishForm(queueItemId, bagId, bagName);
+            _revealPublishButton(queueItemId, bagId);
         } else if (data.state === 'FAILURE') {
             evtSource.close();
             setStatus(queueItemId, '✗ Failed');
@@ -178,6 +181,41 @@ function watchConversionProgress(jobId, queueItemId, bagId, bagName) {
         evtSource.close();
         setStatus(queueItemId, 'Connection lost');
     };
+}
+
+// ── Reveal publish button after conversion ────────────────────
+function _revealPublishButton(queueItemId, bagId) {
+    const actionsEl = document.getElementById(`qi-actions-${queueItemId}`);
+    if (actionsEl) actionsEl.style.display = '';
+
+    document.getElementById(`publish-btn-${queueItemId}`)?.addEventListener('click', async () => {
+        const btn = document.getElementById(`publish-btn-${queueItemId}`);
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+
+        const nameVal = document.getElementById(`qi-name-${queueItemId}`)?.value.trim() || '';
+        const descVal = document.getElementById(`qi-desc-${queueItemId}`)?.value.trim() || null;
+        const tagInput = _tagInputs[queueItemId];
+        const tags = tagInput ? tagInput.getValues() : [];
+        const teamPills = document.querySelectorAll(`#qi-teams-${queueItemId} .tag--active`);
+        const team = [...teamPills].map(b => b.dataset.team);
+
+        try {
+            const r = await fetch(`/api/bags/${bagId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: nameVal || undefined, description: descVal, tags, team: team.length ? team : null, published: true }),
+            });
+            if (!r.ok) throw new Error(await r.text());
+            const metaEl = document.getElementById(`qi-meta-${queueItemId}`);
+            if (metaEl) metaEl.innerHTML = `<span class="publish-success">✓ Published &middot; <a href="/">View in Library</a></span>`;
+            delete _tagInputs[queueItemId];
+        } catch {
+            btn.disabled = false;
+            btn.textContent = 'Publish';
+            setStatus(queueItemId, 'Save failed');
+        }
+    });
 }
 
 // ── Reusable chip tag input ───────────────────────────────────
@@ -216,55 +254,6 @@ function makeTagInput(container) {
     input.addEventListener('blur', () => { if (input.value.trim()) addChip(input.value); });
 
     return { getValues: () => [...values] };
-}
-
-// ── Publish form ──────────────────────────────────────────────
-function showPublishForm(queueItemId, bagId, bagName) {
-    const stepEl = document.getElementById(`qi-step-${queueItemId}`);
-    if (!stepEl) return;
-    stepEl.innerHTML = `
-        <div class="publish-form">
-            <input class="publish-form__input" type="text" data-field="name"
-                   value="${escHtml(bagName)}" placeholder="Name">
-            <input class="publish-form__input" type="text" data-field="desc"
-                   placeholder="Description (optional)">
-            <div class="tags-input chip-input" id="publish-tags-${queueItemId}"
-                 onclick="this.querySelector('.chip-input__text').focus()">
-                <input class="chip-input__text" type="text" placeholder="Add tag…">
-            </div>
-            <div class="publish-form__actions">
-                <button class="btn btn--primary btn--sm" id="publish-btn-${queueItemId}">Publish</button>
-                <a href="/" class="btn btn--secondary btn--sm">View Library</a>
-            </div>
-        </div>
-    `;
-
-    const tagContainer = document.getElementById(`publish-tags-${queueItemId}`);
-    const tagInput = makeTagInput(tagContainer);
-
-    document.getElementById(`publish-btn-${queueItemId}`)?.addEventListener('click', async () => {
-        const btn = document.getElementById(`publish-btn-${queueItemId}`);
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
-
-        const nameVal = stepEl.querySelector('[data-field="name"]').value.trim() || bagName;
-        const descVal = stepEl.querySelector('[data-field="desc"]').value.trim() || null;
-        const tags = tagInput.getValues();
-
-        try {
-            const r = await fetch(`/api/bags/${bagId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: nameVal, description: descVal, tags, published: true }),
-            });
-            if (!r.ok) throw new Error(await r.text());
-            stepEl.innerHTML = `<span class="publish-success">✓ Published &middot; <a href="/">View in Library</a></span>`;
-        } catch {
-            btn.disabled = false;
-            btn.textContent = 'Publish';
-            setStatus(queueItemId, 'Save failed');
-        }
-    });
 }
 
 function escHtml(str) {
