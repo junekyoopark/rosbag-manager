@@ -4,6 +4,17 @@ A self-hosted web application for uploading, managing, converting, and visualizi
 
 Bags are converted to [Rerun](https://rerun.io) `.rrd` format and streamed directly in the browser via the Rerun web viewer — no desktop app required.
 
+<table>
+  <tr>
+    <td><img src="screenshots/rosbag_manager_library.png" alt="Bag library"/></td>
+    <td><img src="screenshots/rosbag_manager_rerun.png" alt="Rerun viewer"/></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Bag library</em></td>
+    <td align="center"><em>In-browser Rerun viewer</em></td>
+  </tr>
+</table>
+
 ## Features
 
 - Upload ROS1 `.bag`, ROS2 `.db3`, and MCAP files
@@ -17,14 +28,6 @@ Bags are converted to [Rerun](https://rerun.io) `.rrd` format and streamed direc
 - Role-based access: admin and regular users; per-user NAS upload privilege
 - HTTPS support via Let's Encrypt with automatic certificate renewal
 - Dark-themed responsive UI
-
-## Screenshots
-
-![Bag library](screenshots/rosbag_manager_library.png)
-*Bag library — browse, search, filter by tag/format/team, and manage uploads.*
-
-![Rerun viewer](screenshots/rosbag_manager_rerun.png)
-*In-browser Rerun viewer — 3D visualization, topic inspection, and bag metadata editing.*
 
 ## Stack
 
