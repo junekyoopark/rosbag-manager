@@ -18,6 +18,14 @@ Bags are converted to [Rerun](https://rerun.io) `.rrd` format and streamed direc
 - HTTPS support via Let's Encrypt with automatic certificate renewal
 - Dark-themed responsive UI
 
+## Screenshots
+
+![Bag library](screenshots/rosbag_manager_library.png)
+*Bag library — browse, search, filter by tag/format/team, and manage uploads.*
+
+![Rerun viewer](screenshots/rosbag_manager_rerun.png)
+*In-browser Rerun viewer — 3D visualization, topic inspection, and bag metadata editing.*
+
 ## Stack
 
 | Component | Technology |

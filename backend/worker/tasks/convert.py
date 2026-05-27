@@ -110,6 +110,9 @@ def ros1_to_mcap(bag_path: Path, bag_id: str) -> Path:
                 try:
                     msg_ros1 = ts_ros1.deserialize_ros1(rawdata, conn.msgtype)
                     msg_ros2 = _ros1_to_ros2_msg(msg_ros1, ts_ros2)
+                    # Rerun drops entities with empty frame names — derive one from the topic
+                    if hasattr(msg_ros2, 'header') and not getattr(msg_ros2.header, 'frame_id', None):
+                        msg_ros2.header.frame_id = '_anon/' + conn.topic.lstrip('/')
                     cdr = ts_ros2.serialize_cdr(msg_ros2, conn.msgtype)
                     writer.write(conn_map[conn.id], timestamp, cdr)
                 except Exception as e:
@@ -144,7 +147,26 @@ def ros2_db3_to_mcap(bag_path: Path, bag_id: str) -> Path:
                     typestore=reader.typestore,
                 )
                 conn_map[conn.id] = out_conn
+            # Track which topics need frame_id patching (checked on first message)
+            needs_patch: dict[str, bool] = {}
             for conn, timestamp, data in reader.messages():
+                topic = conn.topic
+                if topic not in needs_patch:
+                    try:
+                        probe = reader.typestore.deserialize_cdr(data, conn.msgtype)
+                        needs_patch[topic] = (
+                            hasattr(probe, 'header') and
+                            not getattr(probe.header, 'frame_id', None)
+                        )
+                    except Exception:
+                        needs_patch[topic] = False
+                if needs_patch[topic]:
+                    try:
+                        msg = reader.typestore.deserialize_cdr(data, conn.msgtype)
+                        msg.header.frame_id = '_anon/' + topic.lstrip('/')
+                        data = reader.typestore.serialize_cdr(msg, conn.msgtype)
+                    except Exception:
+                        pass
                 writer.write(conn_map[conn.id], timestamp, data)
 
     mcap_files = list(out_dir.glob("*.mcap"))
@@ -187,6 +209,59 @@ def mcap_to_rrd(mcap_path: Path, bag_id: str) -> Path:
     return out_rrd
 
 
+def _patch_mcap_empty_frameids(mcap_path: Path, bag_id: str) -> Path:
+    """
+    Scan the MCAP for messages whose header.frame_id is empty.
+    If any are found, write a patched copy and return its path;
+    otherwise return the original path unchanged.
+    """
+    from rosbags.rosbag2 import Reader, Writer
+    from rosbags.rosbag2.writer import StoragePlugin
+
+    needs_patch: dict[str, bool] = {}
+    with Reader(mcap_path) as reader:
+        all_topics = {c.topic for c in reader.connections}
+        for conn, timestamp, data in reader.messages():
+            if conn.topic in needs_patch:
+                continue
+            try:
+                msg = reader.typestore.deserialize_cdr(data, conn.msgtype)
+                needs_patch[conn.topic] = (
+                    hasattr(msg, 'header') and not getattr(msg.header, 'frame_id', None)
+                )
+            except Exception:
+                needs_patch[conn.topic] = False
+            if needs_patch.keys() >= all_topics:
+                break  # every topic sampled — no need to read further
+
+    if not any(needs_patch.values()):
+        return mcap_path
+
+    out_dir = Path(settings.UPLOADS_DIR) / f"{bag_id}_mcap_patched"
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+
+    with Reader(mcap_path) as reader:
+        with Writer(out_dir, version=9, storage_plugin=StoragePlugin.MCAP) as writer:
+            conn_map = {}
+            for conn in reader.connections:
+                conn_map[conn.id] = writer.add_connection(
+                    conn.topic, conn.msgtype, typestore=reader.typestore
+                )
+            for conn, timestamp, data in reader.messages():
+                if needs_patch.get(conn.topic):
+                    try:
+                        msg = reader.typestore.deserialize_cdr(data, conn.msgtype)
+                        msg.header.frame_id = '_anon/' + conn.topic.lstrip('/')
+                        data = reader.typestore.serialize_cdr(msg, conn.msgtype)
+                    except Exception:
+                        pass
+                writer.write(conn_map[conn.id], timestamp, data)
+
+    mcap_files = list(out_dir.glob("*.mcap"))
+    return mcap_files[0] if mcap_files else mcap_path
+
+
 def _update_progress(task, job: ConversionJob, db, pct: int, step: str):
     task.update_state(state="PROGRESS", meta={"pct": pct, "step": step})
     job.status = "progress"
@@ -223,7 +298,8 @@ def convert_bag(self, bag_id: str):
             mcap_path = ros2_db3_to_mcap(Path(bag.upload_path), bag_id)
 
         elif bag_format in ("ros2_mcap", "mcap_single"):
-            mcap_path = Path(bag.upload_path)
+            _update_progress(self, job, db, 10, "Checking MCAP frame IDs")
+            mcap_path = _patch_mcap_empty_frameids(Path(bag.upload_path), bag_id)
 
         _update_progress(self, job, db, 50, "Converting MCAP → RRD")
         rrd_path = mcap_to_rrd(mcap_path, bag_id)
