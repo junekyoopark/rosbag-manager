@@ -44,6 +44,11 @@ services:
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     volumes:
       - bag_data:/data
     depends_on:
@@ -71,6 +76,11 @@ services:
       PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
       RERUN_VERSION: ${RERUN_VERSION:-0.32.0}
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     volumes:
       - bag_data:/data
     depends_on:
@@ -91,6 +101,7 @@ services:
       - "5555:5555"
     environment:
       REDIS_URL: redis://redis:6379/0
+      FLOWER_BASIC_AUTH: ${FLOWER_BASIC_AUTH:-}
     depends_on:
       - redis
 
