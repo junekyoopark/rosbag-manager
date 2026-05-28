@@ -48,16 +48,7 @@
 </style>
 {% endblock %}
 
-{% block nav_extra %}
-{% set _u = request.state.current_user if request.state is defined else none %}
-{% if _u and _u.role == 'admin' %}
-<a href="/admin/users" class="btn btn--secondary">Users</a>
-{% endif %}
-<a href="/robots" class="btn btn--secondary">Robots</a>
-<form action="/auth/logout" method="post" style="display:inline">
-    <button type="submit" class="btn btn--secondary">Logout</button>
-</form>
-{% endblock %}
+{% block nav_extra %}{% endblock %}
 
 {% macro robot_rows(robots, show_remove=true) %}
 {% for r in robots | sort(attribute='name') %}
@@ -74,6 +65,13 @@
     <td>
         {% if online[r.id] %}<span style="color:#16a34a;font-size:12px">● Online</span>
         {% else %}<span style="color:var(--text-muted);font-size:12px">○ Offline</span>{% endif %}
+    </td>
+    <td>
+        <form method="post" action="/robots/{{ r.id }}/toggle-proxy" style="display:contents">
+            <button type="submit" class="btn btn--sm" style="{% if r.use_proxy %}background:rgba(0,122,204,0.15);color:var(--accent-primary);border:1px solid var(--accent-primary){% else %}background:var(--bg-elevated);color:var(--text-muted);border:1px solid var(--border){% endif %}">
+                {{ '● Proxy on' if r.use_proxy else '○ Proxy off' }}
+            </button>
+        </form>
     </td>
     <td>
         <!-- Access chips -->
@@ -149,7 +147,7 @@
         <div class="network-body">
             {% if net.robots %}
             <table class="robots-table">
-                <thead><tr><th>Name</th><th>WebSocket URL</th><th>Status</th><th>Access</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>WebSocket URL</th><th>Status</th><th>Proxy</th><th>Access</th><th></th></tr></thead>
                 <tbody>{{ robot_rows(net.robots) }}</tbody>
             </table>
             {% else %}
@@ -166,6 +164,11 @@
                 <div class="ff"><label>WebSocket URL</label>
                     <input type="text" name="ws_url" id="ws-input-{{ net.id }}" placeholder="ws://192.168.x.x:8765" required autocomplete="off" style="min-width:220px">
                 </div>
+                <div class="ff" style="justify-content:flex-end">
+                    <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+                        <input type="checkbox" name="use_proxy" value="on" checked style="cursor:pointer"> Proxy
+                    </label>
+                </div>
                 <button type="submit" class="btn btn--primary btn--sm" style="margin-bottom:1px">Add robot</button>
             </form>
         </div>
@@ -179,7 +182,7 @@
         </div>
         <div class="network-body">
             <table class="robots-table">
-                <thead><tr><th>Name</th><th>WebSocket URL</th><th>Status</th><th>Access</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>WebSocket URL</th><th>Status</th><th>Proxy</th><th>Access</th><th></th></tr></thead>
                 <tbody>{{ robot_rows(ungrouped) }}</tbody>
             </table>
         </div>

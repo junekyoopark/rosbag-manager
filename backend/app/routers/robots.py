@@ -232,6 +232,7 @@ async def create_robot(
     name: str = Form(...),
     ws_url: str = Form(...),
     network_id: str = Form(""),
+    use_proxy: str = Form("on"),
     db: AsyncSession = Depends(get_db),
     user=Depends(require_robot_manager),
 ):
@@ -240,7 +241,20 @@ async def create_robot(
     net_id = int(network_id) if network_id.strip() else None
     existing = await db.execute(select(Robot).where(Robot.name == name))
     if not existing.scalar_one_or_none():
-        db.add(Robot(name=name, ws_url=ws_url, network_id=net_id, added_by_id=user.id))
+        db.add(Robot(name=name, ws_url=ws_url, network_id=net_id, added_by_id=user.id, use_proxy=use_proxy == "on"))
+        await db.commit()
+    return RedirectResponse(url="/robots", status_code=303)
+
+
+@admin_router.post("/{robot_id}/toggle-proxy")
+async def toggle_robot_proxy(
+    robot_id: int,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_robot_manager),
+):
+    robot = await db.get(Robot, robot_id)
+    if robot:
+        robot.use_proxy = not robot.use_proxy
         await db.commit()
     return RedirectResponse(url="/robots", status_code=303)
 
@@ -515,6 +529,7 @@ async def live_create_robot(
     name: str = Form(...),
     ws_url: str = Form(...),
     network_id: str = Form(""),
+    use_proxy: str = Form("on"),
     db: AsyncSession = Depends(get_db),
     user=Depends(require_robot_manager),
 ):
@@ -523,7 +538,7 @@ async def live_create_robot(
     net_id = int(network_id) if network_id.strip() else None
     existing = await db.execute(select(Robot).where(Robot.name == name))
     if not existing.scalar_one_or_none():
-        db.add(Robot(name=name, ws_url=ws_url, network_id=net_id, added_by_id=user.id))
+        db.add(Robot(name=name, ws_url=ws_url, network_id=net_id, added_by_id=user.id, use_proxy=use_proxy == "on"))
         await db.commit()
     return RedirectResponse(url="/live", status_code=303)
 

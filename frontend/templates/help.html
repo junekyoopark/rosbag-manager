@@ -385,9 +385,17 @@ code {
             <strong>Search and filter</strong>
             <p>Type in the search bar to filter by name, description, or tag in real time.
               Use the filter buttons below the navbar to show only
-              <em>Ready</em>, <em>Converting</em>, or <em>Error</em> bags.
+              <em>Converting</em> or <em>Error</em> bags.
               Click a tag chip on a card to filter by that tag. Select multiple tags and
               toggle <strong>Any / All</strong> to switch between OR and AND matching.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">8</div>
+          <div class="step__body">
+            <strong>Toggle dark mode</strong>
+            <p>Click the moon/sun icon in the navbar to switch between light and dark themes.
+              The preference is saved to your browser and restored on each visit.</p>
           </div>
         </div>
       </div>
@@ -486,6 +494,10 @@ code {
         <div class="powered-item">
           <span class="powered-item__name">PostgreSQL</span>
           <span class="powered-item__role">Bag metadata &amp; job state</span>
+        </div>
+        <div class="powered-item">
+          <span class="powered-item__name">Lichtblick</span>
+          <span class="powered-item__role">Live ROS topic visualisation (Foxglove fork)</span>
         </div>
         <div class="powered-item">
           <span class="powered-item__name">HTMX</span>
@@ -627,9 +639,9 @@ code {
           <div class="step__num">3</div>
           <div class="step__body">
             <strong>Or select at open time</strong>
-            <p>Before clicking a robot's <strong>Lichtblick</strong> button, use the <strong>Layout</strong> dropdown
+            <p>Before clicking a robot's Lichtblick button, use the <strong>Layout</strong> dropdown
               at the top of the Live View page to pick a layout for that session. If the robot has a default layout set,
-              it takes priority.</p>
+              it takes priority over the global selector.</p>
           </div>
         </div>
       </div>
@@ -650,22 +662,23 @@ code {
         <div class="step">
           <div class="step__num">2</div>
           <div class="step__body">
-            <strong>Copy the right URL</strong>
-            <p>
-              <strong>Copy direct</strong> — use when your browser is on the <em>same LAN as the robot</em>.
-              Lichtblick connects straight to <code>ws://robot-ip:8765</code>, bypassing the server entirely.<br><br>
-              <strong>Copy proxy</strong> — use when accessing remotely (e.g. via Tailscale Funnel).
+            <strong>Click the right Lichtblick button</strong>
+            <p>Each robot card has two buttons:</p>
+            <p style="margin-top:8px">
+              <strong>Lichtblick Direct</strong> — use when your browser is on the <em>same LAN as the robot</em>.
+              Opens Lichtblick connected directly to <code>ws://robot-ip:8765</code>, bypassing the server entirely.<br><br>
+              <strong>Lichtblick Proxy</strong> — use when accessing remotely (e.g. via Tailscale Funnel).
               The server relays the WebSocket connection to the robot over its local network.
             </p>
+            <p style="margin-top:8px">Both buttons pre-load the selected layout automatically.</p>
           </div>
         </div>
         <div class="step">
           <div class="step__num">3</div>
           <div class="step__body">
-            <strong>Open Lichtblick and connect</strong>
-            <p>Click the robot's <strong>Lichtblick</strong> button to open Lichtblick in a new tab with the layout
-              already selected (if one is configured). Or manually:<br>
-              <strong>Open connection</strong> → <strong>Foxglove WebSocket</strong> → paste the copied URL → <strong>Open</strong>.</p>
+            <strong>Copy URL manually (optional)</strong>
+            <p>Use <strong>Copy direct</strong> or <strong>Copy proxy</strong> to copy just the WebSocket URL.
+              Then in Lichtblick: <strong>Open connection</strong> → <strong>Foxglove WebSocket</strong> → paste → <strong>Open</strong>.</p>
           </div>
         </div>
       </div>
@@ -683,25 +696,25 @@ code {
             <td style="font-family:inherit;font-size:13px">Same LAN as robot</td>
             <td style="font-family:inherit;font-size:13px">Anywhere</td>
             <td style="font-family:inherit;font-size:13px">Same LAN as PC</td>
-            <td style="font-family:inherit;font-size:13px"><strong>Direct</strong> — <code>ws://robot-ip:8765</code></td>
+            <td style="font-family:inherit;font-size:13px"><strong>Lichtblick Direct</strong></td>
           </tr>
           <tr>
             <td style="font-family:inherit;font-size:13px">Remote (internet)</td>
             <td style="font-family:inherit;font-size:13px">Same LAN as robot</td>
             <td style="font-family:inherit;font-size:13px">LAN (no internet needed)</td>
-            <td style="font-family:inherit;font-size:13px"><strong>Proxy</strong> — <code>wss://server/ws/robot/1</code></td>
+            <td style="font-family:inherit;font-size:13px"><strong>Lichtblick Proxy</strong></td>
           </tr>
           <tr>
             <td style="font-family:inherit;font-size:13px">Same LAN as robot</td>
             <td style="font-family:inherit;font-size:13px">Different network</td>
             <td style="font-family:inherit;font-size:13px">Same LAN as PC</td>
-            <td style="font-family:inherit;font-size:13px"><strong>Direct</strong> — server proxy won't reach robot</td>
+            <td style="font-family:inherit;font-size:13px"><strong>Lichtblick Direct</strong> — server proxy can't reach the robot</td>
           </tr>
           <tr>
             <td style="font-family:inherit;font-size:13px">Remote (internet)</td>
             <td style="font-family:inherit;font-size:13px">Remote (internet)</td>
             <td style="font-family:inherit;font-size:13px">Tailscale or VPN</td>
-            <td style="font-family:inherit;font-size:13px"><strong>Proxy</strong> — add robot with Tailscale IP <code>ws://100.x.x.x:8765</code></td>
+            <td style="font-family:inherit;font-size:13px"><strong>Lichtblick Proxy</strong> — add robot with Tailscale IP <code>ws://100.x.x.x:8765</code></td>
           </tr>
         </tbody>
       </table>
@@ -777,7 +790,7 @@ code {
           <div class="step__body">
             <strong>Clone the repository</strong>
             <div class="code-block"><pre><span class="cmd">git clone</span> &lt;repo-url&gt;
-<span class="cmd">cd</span> rosbag-viewer</pre></div>
+<span class="cmd">cd</span> rosbag-manager</pre></div>
           </div>
         </div>
         <div class="step">
@@ -805,14 +818,22 @@ code {
           <div class="step__body">
             <strong>Build images and start all services</strong>
             <div class="code-block"><pre><span class="cmd">docker compose up</span> <span class="flag">--build -d</span></pre></div>
-            <p>On first run Docker pulls base images, builds the backend/worker/nginx
-               images, runs database migrations, and creates the initial admin user.
-               This takes 2–5 minutes. The server is ready when
+            <p>On first run Docker pulls base images and builds the backend/worker/nginx
+               images. This takes 2–5 minutes. The server is ready when
                <code>docker compose ps</code> shows all services as <em>healthy</em>.</p>
           </div>
         </div>
         <div class="step">
           <div class="step__num">4</div>
+          <div class="step__body">
+            <strong>Run database migrations</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose exec</span> backend alembic upgrade head</pre></div>
+            <p>This creates all tables and applies any pending schema migrations.
+               Run this once on first setup and again after each <code>git pull</code>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">5</div>
           <div class="step__body">
             <strong>Open the web UI</strong>
             <p>Navigate to <code>http://&lt;host-ip&gt;</code> in a browser.
@@ -883,16 +904,22 @@ code {
           <div class="step__body">
             <strong>Restart with new images</strong>
             <div class="code-block"><pre><span class="cmd">docker compose up -d</span></pre></div>
-            <p>Compose replaces only the containers whose image changed.
-               Database migrations run automatically on backend startup.</p>
+            <p>Compose replaces only the containers whose image changed.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">4</div>
+          <div class="step__body">
+            <strong>Apply any new migrations</strong>
+            <div class="code-block"><pre><span class="cmd">docker compose exec</span> backend alembic upgrade head</pre></div>
           </div>
         </div>
       </div>
       <div class="tips" style="margin-top:16px">
         <div class="tip tip--warn">
-          <strong>Static file changes</strong> (CSS, JS, templates) do not require a
-          rebuild — just a hard-refresh in the browser (<code>Ctrl+Shift+R</code>).
-          Only Python code or dependency changes need <code>docker compose build</code>.
+          <strong>Templates, CSS, and JS</strong> are baked into the Docker image —
+          changes require <code>docker compose build backend &amp;&amp; docker compose up -d backend</code>,
+          not just a browser refresh.
         </div>
       </div>
     </div>

@@ -186,23 +186,8 @@ function toggleTeamFilter(btn) {
 
 // ── Grid refresh ──────────────────────────────────────────────
 function refreshGrid() {
-    const params = new URLSearchParams();
-    const q = document.querySelector('input[name="q"]')?.value;
-    if (q) params.set('q', q);
-    const status = document.getElementById('filter-status')?.value;
-    const format = document.getElementById('filter-format')?.value;
-    const drafts = document.getElementById('filter-drafts')?.value;
-    if (status) params.set('status', status);
-    if (format) params.set('format', format);
-    if (drafts && drafts !== 'false') params.set('drafts', drafts);
-    if (_activeTeams.size > 0) params.set('team', [..._activeTeams].join(','));
-    if (_activeTags.size > 0) {
-        params.set('tags', [..._activeTags].join(','));
-        params.set('tag_mode', _tagMode);
-    }
-    htmx.ajax('GET', '/api/bags/grid-partial?' + params.toString(), {
-        target: '#bag-grid', swap: 'innerHTML',
-    });
+    const btn = document.getElementById('grid-refresh-btn');
+    if (btn) btn.click();
 }
 
 function highlightActiveTags() {

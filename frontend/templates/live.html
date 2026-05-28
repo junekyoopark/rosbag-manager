@@ -18,19 +18,19 @@
 .robot-card {
     background: var(--bg-surface); border: 1px solid var(--border);
     border-radius: var(--radius-lg); padding: 14px 16px;
-    margin-bottom: 8px; display: flex; align-items: center; gap: 14px;
+    margin-bottom: 8px; display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
 }
-.robot-card__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.robot-card__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
 .robot-card__dot--online  { background: #16a34a; box-shadow: 0 0 0 3px #dcfce7; }
 .robot-card__dot--offline { background: var(--border); }
-.robot-card__info { flex: 1; min-width: 0; }
+.robot-card__info { flex: 1; min-width: 160px; }
 .robot-card__name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
 .robot-card__urls { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
 .robot-card__url-row { display: flex; align-items: baseline; gap: 6px; }
 .robot-card__url-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); width: 50px; flex-shrink: 0; }
 .robot-card__url-val { font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); }
 .proxy-url { color: var(--accent-primary) !important; }
-.robot-card__actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+.robot-card__actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; flex-basis: 100%; }
 
 .add-robot-form {
     background: var(--bg-surface); border: 1px solid var(--border);
@@ -159,8 +159,9 @@
 
     <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:13px 16px;font-size:13px;color:var(--text-muted);margin-bottom:32px">
         <strong style="color:var(--text-primary)">How to connect:</strong>
-        Open Lichtblick → <strong>Open connection</strong> → <strong>Foxglove WebSocket</strong> → paste a URL above.
-        Use <strong>Direct</strong> if on the same LAN as the robot, or <strong>Proxy</strong> for remote access via this server.
+        Click <strong>Lichtblick Direct</strong> if your browser is on the same LAN as the robot,
+        or <strong>Lichtblick Proxy</strong> for remote access via this server.
+        Both buttons open Lichtblick in a new tab with the connection pre-configured.
     </div>
 
     {% else %}
@@ -175,30 +176,8 @@
     {% endif %}
 
     {% if can_manage %}
-    <div>
-        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px">Add robot</div>
-        <form method="post" action="/live/robots/create" class="add-robot-form">
-            <div class="ff">
-                <label>Name</label>
-                <input type="text" name="name" placeholder="e.g. Drone-01" required autocomplete="off" style="min-width:130px">
-            </div>
-            <div class="ff">
-                <label>WebSocket URL</label>
-                <input type="text" name="ws_url" placeholder="ws://192.168.1.50:8765" required autocomplete="off" style="min-width:210px">
-            </div>
-            {% if networks %}
-            <div class="ff">
-                <label>Network</label>
-                <select name="network_id" style="min-width:130px">
-                    <option value="">— ungrouped —</option>
-                    {% for net in networks %}
-                    <option value="{{ net.id }}">{{ net.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            {% endif %}
-            <button type="submit" class="btn btn--primary" style="margin-bottom:1px">Add</button>
-        </form>
+    <div style="margin-top:8px">
+        <a href="/robots" class="btn btn--secondary btn--sm">Manage robots →</a>
     </div>
     {% endif %}
 </div>
@@ -277,12 +256,12 @@
 <script>
 const wsBase = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host;
 
-function openLichtblick(robotId, robotLayoutId) {
-    const wsUrl = wsBase + '/ws/robot/' + robotId;
+function openLichtblick(robotId, robotLayoutId, wsUrl) {
+    const url = wsUrl || (wsBase + '/ws/robot/' + robotId);
     const layoutId = robotLayoutId || document.getElementById('layout-select').value;
-    let url = '/lichtblick-launch?ds=foxglove-websocket&ds.url=' + encodeURIComponent(wsUrl);
-    if (layoutId) url += '&layout_id=' + layoutId;
-    window.open(url, '_blank');
+    let launchUrl = '/lichtblick-launch?ds=foxglove-websocket&ds.url=' + encodeURIComponent(url);
+    if (layoutId) launchUrl += '&layout_id=' + layoutId;
+    window.open(launchUrl, '_blank');
 }
 
 function updateRobotLayout(robotId, layoutId) {

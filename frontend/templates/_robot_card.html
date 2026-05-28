@@ -8,17 +8,24 @@
                 <span class="robot-card__url-label">Direct</span>
                 <span class="robot-card__url-val">{{ r.ws_url }}</span>
             </div>
+            {% if r.use_proxy %}
             <div class="robot-card__url-row">
                 <span class="robot-card__url-label">Proxy</span>
                 <span class="robot-card__url-val proxy-url" data-proxy-robot="{{ r.id }}">—</span>
             </div>
+            {% endif %}
         </div>
     </div>
     <div class="robot-card__actions">
         <button class="btn btn--secondary btn--sm" onclick="copyText('{{ r.ws_url }}', this)">Copy direct</button>
+        {% if r.use_proxy %}
         <button class="btn btn--secondary btn--sm" onclick="copyText(wsBase+'/ws/robot/{{ r.id }}', this)">Copy proxy</button>
-        <button class="btn btn--secondary btn--sm" onclick="openRobotImport({{ r.id }}, '{{ r.name }}')">Import</button>
-        <button class="btn btn--primary btn--sm" onclick="openLichtblick({{ r.id }}, {{ r.layout_id or 'null' }})">Lichtblick</button>
+        {% endif %}
+        <button class="btn btn--secondary btn--sm" onclick="openRobotImport({{ r.id }}, '{{ r.name }}')">Import Bag</button>
+        <button class="btn btn--primary btn--sm" onclick="openLichtblick({{ r.id }}, {{ r.layout_id or 'null' }}, '{{ r.ws_url }}')">Lichtblick Direct</button>
+        {% if r.use_proxy %}
+        <button class="btn btn--primary btn--sm" onclick="openLichtblick({{ r.id }}, {{ r.layout_id or 'null' }})">Lichtblick Proxy</button>
+        {% endif %}
         {% if can_manage %}
         <select style="padding:4px 8px;font-size:12px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;cursor:pointer" onchange="updateRobotLayout({{ r.id }}, this.value)">
             <option value="">Default layout</option>

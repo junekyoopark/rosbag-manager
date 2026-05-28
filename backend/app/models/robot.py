@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,4 +31,5 @@ class Robot(Base):
     layout_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("lichtblick_layouts.id", ondelete="SET NULL"), nullable=True
     )
+    use_proxy: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     network: Mapped["Network | None"] = relationship(back_populates="robots")

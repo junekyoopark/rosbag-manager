@@ -104,6 +104,28 @@ a:hover {
 
 .navbar__spacer { flex: 1; }
 
+.navbar__navlink {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+}
+
+.navbar__navlink:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    text-decoration: none;
+}
+
+.navbar__navlink--active {
+    color: var(--accent-primary);
+    font-weight: 600;
+}
+
 .navbar__search {
     display: flex;
     align-items: center;

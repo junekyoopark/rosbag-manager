@@ -1,96 +1,57 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Local RRD Viewer</title>
-    <link rel="stylesheet" href="/static/css/main.css">
-    <style>
-        html, body {
-            margin: 0; padding: 0; height: 100%; overflow: hidden;
-            background: #000;
-        }
+{% extends "base.html" %}
+{% block title %}Local RRD Viewer{% endblock %}
 
-        .viewer-bar {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 6px 14px;
-            height: 38px;
-            box-sizing: border-box;
-            background: var(--bg-surface);
-            border-bottom: 1px solid var(--border);
-        }
+{% block extra_css %}
+<style>
+    .page-content { overflow: hidden; }
 
-        .viewer-bar__back {
-            color: var(--text-secondary);
-            font-size: 13px;
-            text-decoration: none;
-            white-space: nowrap;
-        }
-        .viewer-bar__back:hover { color: var(--text-primary); }
+    #rerun-container {
+        width: 100%;
+        height: calc(100vh - var(--nav-height));
+        position: relative;
+        background: var(--bg-base);
+    }
 
-        .viewer-bar__title {
-            flex: 1;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-primary);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+    #drop-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        background: var(--bg-base);
+        color: var(--text-secondary);
+        z-index: 10;
+        transition: background 0.2s;
+    }
 
-        #rerun-container {
-            width: 100%;
-            height: calc(100vh - 38px);
-            position: relative;
-        }
+    #drop-overlay.drag-over {
+        background: var(--bg-elevated);
+        border: 3px dashed var(--accent-primary);
+    }
 
-        /* Drop overlay — shown until a file is loaded */
-        #drop-overlay {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            background: var(--bg-base);
-            color: var(--text-secondary);
-            z-index: 10;
-            transition: background 0.2s;
-        }
+    #drop-overlay svg { color: var(--text-muted); }
+    #drop-overlay p { font-size: 15px; font-weight: 500; }
+    #drop-overlay small { font-size: 12px; color: var(--text-muted); }
 
-        #drop-overlay.drag-over {
-            background: var(--bg-elevated);
-            border: 3px dashed var(--accent-primary);
-        }
+    #file-input { display: none; }
 
-        #drop-overlay svg { color: var(--text-muted); }
+    #error-msg {
+        display: none;
+        color: var(--accent-error);
+        font-size: 13px;
+    }
+</style>
+{% endblock %}
 
-        #drop-overlay p { font-size: 15px; font-weight: 500; }
+{% block nav_extra %}
+<span id="file-label" style="font-size:13px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px">Local RRD Viewer</span>
+<input type="file" id="file-input" accept=".rrd">
+<button class="btn btn--secondary btn--sm" onclick="document.getElementById('file-input').click()">Open file…</button>
+{% endblock %}
 
-        #drop-overlay small { font-size: 12px; color: var(--text-muted); }
-
-        #file-input { display: none; }
-
-        #error-msg {
-            display: none;
-            color: var(--accent-error);
-            font-size: 13px;
-        }
-    </style>
-</head>
-<body>
-<div class="viewer-bar">
-    <a href="/" class="viewer-bar__back">← Library</a>
-    <span class="viewer-bar__title" id="file-label">Local RRD Viewer</span>
-    <input type="file" id="file-input" accept=".rrd">
-    <button class="btn btn--secondary btn--sm" onclick="document.getElementById('file-input').click()">
-        Open file…
-    </button>
-</div>
-
+{% block content %}
 <div id="rerun-container">
     <div id="drop-overlay">
         <svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -103,7 +64,9 @@
         <p id="error-msg"></p>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 const overlay   = document.getElementById('drop-overlay');
 const container = document.getElementById('rerun-container');
@@ -111,13 +74,9 @@ const fileInput = document.getElementById('file-input');
 const fileLabel = document.getElementById('file-label');
 const errorMsg  = document.getElementById('error-msg');
 
-let _viewer = null; // WebViewer instance
+let _viewer = null;
 
-// ── Drag-and-drop onto the overlay ────────────────────────────
-overlay.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    overlay.classList.add('drag-over');
-});
+overlay.addEventListener('dragover', (e) => { e.preventDefault(); overlay.classList.add('drag-over'); });
 overlay.addEventListener('dragleave', () => overlay.classList.remove('drag-over'));
 overlay.addEventListener('drop', (e) => {
     e.preventDefault();
@@ -132,19 +91,13 @@ fileInput.addEventListener('change', () => {
     fileInput.value = '';
 });
 
-// ── Load file into Rerun viewer ───────────────────────────────
 async function loadFile(file) {
-    if (!file.name.endsWith('.rrd')) {
-        showError('Only .rrd files are supported.');
-        return;
-    }
+    if (!file.name.endsWith('.rrd')) { showError('Only .rrd files are supported.'); return; }
 
     errorMsg.style.display = 'none';
-    fileLabel.textContent = 'Uploading…';
+    fileLabel.textContent = 'Loading…';
 
     try {
-        // Upload to server so the viewer can fetch it over a normal HTTP URL
-        // (blob: URLs are not reliably fetchable from inside the Rerun WASM module)
         const form = new FormData();
         form.append('file', file);
         const resp = await fetch('/bags/local/temp-rrd', { method: 'POST', body: form });
@@ -154,21 +107,13 @@ async function loadFile(file) {
         fileLabel.textContent = file.name;
 
         const { WebViewer } = await import('/static/vendor/rerun/index.js');
-
-        // Stop previous viewer so the container is clean for the new recording
-        if (_viewer) {
-            _viewer.stop?.();
-            _viewer = null;
-        }
+        if (_viewer) { _viewer.stop?.(); _viewer = null; }
 
         overlay.style.display = 'none';
         _viewer = new WebViewer();
         await _viewer.start(window.location.origin + url, container, {
-            width: '100%',
-            height: '100%',
-            hide_welcome_screen: true,
+            width: '100%', height: '100%', hide_welcome_screen: true,
         });
-
     } catch (err) {
         _viewer = null;
         overlay.style.display = 'flex';
@@ -183,5 +128,4 @@ function showError(msg) {
     errorMsg.style.display = 'block';
 }
 </script>
-</body>
-</html>
+{% endblock %}

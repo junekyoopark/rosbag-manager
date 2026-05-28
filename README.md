@@ -19,26 +19,28 @@ Bags are converted to [Rerun](https://rerun.io) `.rrd` format and streamed direc
 
 - Upload ROS1 `.bag`, ROS2 `.db3`, and MCAP files
 - Automatic conversion to `.rrd` via background Celery workers with live progress
-- In-browser 3D visualization powered by [Rerun](https://rerun.io) (self-hosted, no CDN)
+- In-browser 3D visualization powered by [Rerun](https://rerun.io) — persistent modal viewer with animated loading progress bar (self-hosted, no CDN)
 - Local RRD viewer — drag-and-drop any `.rrd` file without uploading to the server
-- Tag, search, and filter bag library
+- Tag, search, and filter bag library; click a tag chip to filter by it
 - Draft/publish workflow — bags are hidden from the library until explicitly published
 - Edit bag name, description, and tags after upload
 - Synology NAS upload — send bags to NAS on demand with per-upload folder selection
-- Role-based access: admin and regular users; per-user NAS upload privilege
+- Live View with self-hosted [Lichtblick](https://github.com/lichtblick-suite/lichtblick); per-robot Lichtblick layout selection
+- Role-based access: admin and regular users; per-user NAS upload and robot management privileges
 - HTTPS support via Let's Encrypt with automatic certificate renewal
-- Dark-themed responsive UI
+- Light/dark mode with VS Code-inspired dark theme, persisted across sessions
 
 ## Stack
 
-| Component | Technology |
-|-----------|------------|
-| Backend   | FastAPI + SQLAlchemy (async) + Alembic |
-| Workers   | Celery + Redis |
-| Database  | PostgreSQL 16 |
-| Frontend  | Jinja2 templates + HTMX |
-| Viewer    | Rerun web viewer (self-hosted) |
-| Proxy     | nginx |
+| Component   | Technology |
+|-------------|------------|
+| Backend     | FastAPI + SQLAlchemy (async) + Alembic |
+| Workers     | Celery + Redis |
+| Database    | PostgreSQL 16 |
+| Frontend    | Jinja2 templates + HTMX |
+| Bag viewer  | Rerun web viewer (self-hosted) |
+| Live viewer | Lichtblick (self-hosted, Foxglove Studio fork) |
+| Proxy       | nginx |
 
 ## Quick Start (LAN / HTTP)
 
@@ -113,7 +115,12 @@ ros2 run foxglove_bridge foxglove_bridge
 
 Then in Lichtblick → **Open connection** → WebSocket → `ws://<robot-ip>:8765`.
 
-The **Live View** button in the navbar opens Lichtblick in a new tab.
+The **Live View** link in the navbar opens the Live View page. Each robot card has two buttons:
+
+- **Lichtblick Direct** — connects straight to `ws://robot-ip:8765`, bypassing the server. Use when your browser is on the same LAN as the robot.
+- **Lichtblick Proxy** — routes through the server's WebSocket relay. Use for remote access. Can be disabled per robot in Robot Management.
+
+Both buttons pre-load a saved layout if one is assigned. Admins and robot managers can assign a default layout per robot and toggle proxy support from the Robot Management page.
 
 ## Updating
 

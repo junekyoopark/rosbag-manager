@@ -6,6 +6,22 @@
 <link rel="stylesheet" href="/static/css/library.css">
 {% endblock %}
 
+{% block nav_extra %}
+<div class="navbar__search">
+    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+         viewBox="0 0 24 24" style="color:var(--text-muted);flex-shrink:0">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="search" name="q" placeholder="Search bags, tags…"
+           hx-get="/api/bags/grid-partial"
+           hx-trigger="input changed delay:300ms"
+           hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode"
+           hx-target="#bag-grid"
+           hx-push-url="false"
+           onkeydown="if(event.key==='Enter')event.preventDefault()">
+</div>
+{% endblock %}
+
 {% block content %}
 <!-- Hidden state shared by filter buttons and search bar -->
 <input type="hidden" id="filter-status" name="status" value="">
@@ -81,10 +97,17 @@
     <div id="active-tag-chips" style="display:flex;flex-wrap:wrap;gap:4px"></div>
     <div id="tag-mode-bar" style="display:none;align-items:center;gap:4px">
         <span class="filter-bar__label">Match:</span>
-        <button class="filter-btn" id="btn-tag-or" onclick="setTagMode('or')">Any</button>
-        <button class="filter-btn active" id="btn-tag-and" onclick="setTagMode('and')">All</button>
+        <button class="filter-btn active" id="btn-tag-or" onclick="setTagMode('or')">Any</button>
+        <button class="filter-btn" id="btn-tag-and" onclick="setTagMode('and')">All</button>
     </div>
 </div>
+
+<button id="grid-refresh-btn" style="display:none"
+        hx-get="/api/bags/grid-partial"
+        hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
+        hx-target="#bag-grid"
+        hx-swap="innerHTML"
+        hx-sync="this:abort"></button>
 
 <div id="bag-grid" class="bag-grid">
     {% if bags %}
