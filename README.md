@@ -50,15 +50,15 @@ Bags are converted to [Rerun](https://rerun.io) `.rrd` format and streamed direc
 git clone https://github.com/junekyoopark/rosbag-manager.git
 cd rosbag-manager
 cp .env.example .env
-# Edit .env — at minimum set POSTGRES_PASSWORD, SECRET_KEY, PUBLIC_HOST
+# Edit .env — set at minimum: POSTGRES_PASSWORD, SECRET_KEY, PUBLIC_HOST
 docker compose build
 docker compose up -d
 docker compose exec backend alembic upgrade head
 ```
 
-Open `http://<PUBLIC_HOST>` in your browser and log in with the admin credentials set in `.env`.
+Open `http://<PUBLIC_HOST>` in your browser. On first visit, a setup wizard lets you create the admin account — or pre-set it in `.env` via `INITIAL_ADMIN_USERNAME` / `INITIAL_ADMIN_PASSWORD`.
 
-> **Rebuilding without internet** (images already built once): `docker compose build --no-pull && docker compose up -d`
+> **Rebuilding without internet** (base images already pulled): `docker compose build --no-pull && docker compose up -d`
 
 ## HTTPS Deployment (public internet)
 
@@ -85,14 +85,19 @@ On subsequent restarts, nginx automatically detects the certificate and uses HTT
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `POSTGRES_PASSWORD` | Yes | PostgreSQL password |
-| `SECRET_KEY` | Yes | Random secret for sessions and password encryption. Generate: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `SECRET_KEY` | Yes | Random secret for sessions. Generate: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
 | `PUBLIC_HOST` | Yes | Hostname or IP shown to users (e.g. `192.168.1.10` or `yourdomain.com`) |
-| `INITIAL_ADMIN_PASSWORD` | First boot | Admin password — remove from `.env` after first login |
+| `INITIAL_ADMIN_USERNAME` | No | Pre-create admin username. If omitted, a setup wizard runs on first visit. |
+| `INITIAL_ADMIN_PASSWORD` | No | Pre-create admin password. Remove from `.env` after first login. |
 | `DOMAIN` | HTTPS only | Domain name for Let's Encrypt certificate |
 | `CERTBOT_EMAIL` | HTTPS only | Email for Let's Encrypt renewal failure alerts |
 | `DATA_DIR` | No | Host path for bag data volume (default: `./data`) |
 | `MAX_UPLOAD_SIZE_GB` | No | Upload size limit in GB (default: `50`) |
 | `WORKER_CONCURRENCY` | No | Parallel conversion workers (default: `2`) |
+| `STORAGE_BACKEND` | No | `local` (default) or `s3` for S3-compatible object storage |
+| `S3_BUCKET` / `S3_ENDPOINT` | S3 only | Bucket name and endpoint URL for S3 storage |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | S3 only | S3 credentials |
+| `FLOWER_BASIC_AUTH` | No | `user:password` to password-protect the Flower task monitor |
 
 ## Ports
 
@@ -126,7 +131,7 @@ Both buttons pre-load a saved layout if one is assigned. Admins and robot manage
 
 ```bash
 git pull
-docker compose build --no-pull
+docker compose build backend worker   # only these two contain app code
 docker compose up -d
 docker compose exec backend alembic upgrade head
 ```
