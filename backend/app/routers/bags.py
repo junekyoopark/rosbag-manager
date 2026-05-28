@@ -125,10 +125,16 @@ async def grid_partial(
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ):
-    _, bags = await bag_service.list_bags(db, status, q, tags, tag_mode, format, "created_at_desc", 20, offset, drafts_only=drafts, team=team or None)
+    total, bags = await bag_service.list_bags(db, status, q, tags, tag_mode, format, "created_at_desc", 20, offset, drafts_only=drafts, team=team or None)
     user = getattr(request.state, "current_user", None)
     can_nas = user and (user.role == "admin" or getattr(user, "can_upload_to_nas", False))
-    return templates.TemplateResponse(request, "partials/bag_grid.html", {"bags": bags, "drafts_mode": drafts, "can_nas": can_nas})
+    return templates.TemplateResponse(request, "partials/bag_grid.html", {
+        "bags": bags,
+        "drafts_mode": drafts,
+        "can_nas": can_nas,
+        "total": total,
+        "offset": offset,
+    })
 
 
 @router.get("/{bag_id}/card-partial")

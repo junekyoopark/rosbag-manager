@@ -90,13 +90,20 @@ function _renderChips() {
 }
 
 // ── Tag filter actions ────────────────────────────────────────
+function _syncTagInputs() {
+    const tagsEl = document.getElementById('filter-tags');
+    const modeEl = document.getElementById('filter-tag-mode');
+    if (tagsEl) tagsEl.value = [..._activeTags].join(',');
+    if (modeEl) modeEl.value = _tagMode;
+}
+
 function addTagFilter(tag) {
     tag = (tag || '').trim();
     if (!tag || _activeTags.has(tag)) return;
     _activeTags.add(tag);
     const input = document.getElementById('tag-filter-input');
     if (input) input.value = '';
-    _hideAc();
+    _syncTagInputs();
     _renderChips();
     refreshGrid();
     highlightActiveTags();
@@ -104,6 +111,7 @@ function addTagFilter(tag) {
 
 function removeTagFilter(tag) {
     _activeTags.delete(tag);
+    _syncTagInputs();
     _renderChips();
     refreshGrid();
     highlightActiveTags();
@@ -111,6 +119,7 @@ function removeTagFilter(tag) {
 
 function clearTagFilters() {
     _activeTags.clear();
+    _syncTagInputs();
     _renderChips();
     refreshGrid();
     highlightActiveTags();
@@ -123,6 +132,7 @@ function filterByTag(tag) {
 
 function setTagMode(mode) {
     _tagMode = mode;
+    _syncTagInputs();
     document.getElementById('btn-tag-or')?.classList.toggle('active', mode === 'or');
     document.getElementById('btn-tag-and')?.classList.toggle('active', mode === 'and');
     refreshGrid();

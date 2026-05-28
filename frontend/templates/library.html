@@ -12,44 +12,46 @@
 <input type="hidden" id="filter-format" name="format" value="">
 <input type="hidden" id="filter-drafts" name="drafts" value="false">
 <input type="hidden" id="filter-team" name="team" value="">
+<input type="hidden" id="filter-tags" name="tags" value="">
+<input type="hidden" id="filter-tag-mode" name="tag_mode" value="or">
 
 <div class="filter-bar">
     <span class="filter-bar__label">Status:</span>
     <button class="filter-btn active" data-group="status" data-field="filter-status" data-value=""
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">All</button>
     <button class="filter-btn" data-group="status" data-field="filter-status" data-value="ready"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">● Ready</button>
     <button class="filter-btn" data-group="status" data-field="filter-status" data-value="converting"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">⟳ Converting</button>
     <button class="filter-btn" data-group="status" data-field="filter-status" data-value="error"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">! Error</button>
 
     <span class="filter-bar__label" style="margin-left:8px">Format:</span>
     <button class="filter-btn active" data-group="format" data-field="filter-format" data-value=""
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">All</button>
     <button class="filter-btn" data-group="format" data-field="filter-format" data-value="ros1"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">ROS1</button>
     <button class="filter-btn" data-group="format" data-field="filter-format" data-value="ros2"
             hx-get="/api/bags/grid-partial"
-            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, [name='q']"
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-push-url="false">ROS2</button>
 
@@ -102,14 +104,16 @@
     {% endif %}
 </div>
 
+<div id="load-more-wrap" class="load-more-wrap">
 {% if total > 20 %}
-<div class="load-more-wrap">
     <button class="btn btn--secondary"
-            hx-get="/api/bags/grid-partial?offset=20"
+            hx-get="/api/bags/grid-partial"
+            hx-vals='{"offset": "20"}'
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
             hx-target="#bag-grid"
             hx-swap="beforeend">Load more</button>
-</div>
 {% endif %}
+</div>
 
 <!-- NAS destination popover (shared) -->
 <div id="nas-dest-popover" style="
@@ -268,6 +272,33 @@
         </div>
     </div>
 </div>
+
+<!-- Persistent Rerun viewer modal -->
+<div id="viewer-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:9999;display:none;align-items:center;justify-content:center" onclick="if(event.target.id==='viewer-modal')closeViewerModal()">
+    <div style="background:var(--bg-surface);width:98vw;height:96vh;border-radius:var(--radius-lg);display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;flex-shrink:0;background:var(--bg-surface);border-bottom:1px solid var(--border)">
+            <span style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <button style="background:var(--bg-elevated);border:1px solid var(--border);cursor:pointer;font-size:12px;color:var(--text-primary);padding:4px 10px;line-height:1;border-radius:4px" onclick="closeViewerModal()" title="Back to library">← Back</button>
+                <span id="viewer-modal-title" style="font-weight:700;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px">Loading…</span>
+            </span>
+            <button onclick="closeViewerModal()" style="background:var(--bg-elevated);border:1px solid var(--border);cursor:pointer;font-size:16px;color:var(--text-primary);padding:4px 10px;line-height:1;flex-shrink:0;border-radius:4px" title="Close viewer">✕</button>
+        </div>
+        <div style="flex:1;overflow:hidden;position:relative">
+            <!-- Loading indicator -->
+            <div id="viewer-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg-surface);z-index:10">
+                <div style="text-align:center;width:80%;max-width:400px">
+                    <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px">Loading Rerun viewer…</p>
+                    <div id="viewer-progress-bar" style="height:3px;background:var(--bg-elevated);border-radius:2px;overflow:hidden">
+                        <div id="viewer-progress-fill" style="width:10%;height:100%;background:var(--accent-primary);transition:width 0.3s ease"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Rerun container -->
+            <div id="rerun-viewer-container" style="width:100%;height:100%;background:var(--bg-surface)"></div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -570,6 +601,85 @@ function escHtml(str) {
     return String(str)
         .replace(/&/g, '&amp;').replace(/</g, '&lt;')
         .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ── Persistent Rerun viewer modal ─────────────────────────────
+let _viewerInstance = null;
+
+async function openBagViewerModal(bagId, bagName) {
+    const modal = document.getElementById('viewer-modal');
+    const loading = document.getElementById('viewer-loading');
+    const title = document.getElementById('viewer-modal-title');
+    const container = document.getElementById('rerun-viewer-container');
+
+    modal.style.display = 'flex';
+    loading.style.display = 'flex';
+    title.textContent = 'Loading…';
+
+    try {
+        // Fetch bag data
+        const resp = await fetch(`/bags/${bagId}/data`);
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}: Failed to fetch bag data`);
+        }
+        const data = await resp.json();
+
+        if (data.status !== 'ready' || !data.rrd_url) {
+            throw new Error('Bag not ready for viewing yet');
+        }
+
+        const rrdUrl = window.location.origin + '/rrd/' + data.rrd_url;
+        title.textContent = data.name;
+
+        // Animate progress bar while loading
+        const progressFill = document.getElementById('viewer-progress-fill');
+        let currentWidth = 10;
+        const progressInterval = setInterval(() => {
+            if (currentWidth < 90) {
+                currentWidth += Math.random() * 40;
+                if (currentWidth > 90) currentWidth = 90;
+                progressFill.style.width = currentWidth + '%';
+            }
+        }, 300);
+
+        // Init or reuse viewer
+        try {
+            const { WebViewer } = await import('/static/vendor/rerun/index.js');
+
+            if (!_viewerInstance) {
+                _viewerInstance = new WebViewer();
+                await _viewerInstance.start(rrdUrl, container, {
+                    width: '100%',
+                    height: '100%',
+                    hide_welcome_screen: true,
+                });
+            } else {
+                await _viewerInstance.open(rrdUrl);
+            }
+
+            clearInterval(progressInterval);
+            progressFill.style.width = '100%';
+            setTimeout(() => {
+                loading.style.display = 'none';
+            }, 300);
+        } catch (err) {
+            clearInterval(progressInterval);
+            throw err;
+        }
+    } catch (err) {
+        loading.style.display = 'none';
+        title.textContent = 'Error loading viewer';
+        container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;flex-direction:column;gap:12px;color:var(--accent-error)">
+            <p style="font-weight:600">Failed to load viewer</p>
+            <p style="font-size:12px;color:var(--text-muted);max-width:400px;text-align:center">${escHtml(err.message)}</p>
+            <button class="btn btn--secondary btn--sm" onclick="closeViewerModal()">Close</button>
+        </div>`;
+        console.error('Viewer error:', err);
+    }
+}
+
+function closeViewerModal() {
+    document.getElementById('viewer-modal').style.display = 'none';
 }
 </script>
 {% endblock %}

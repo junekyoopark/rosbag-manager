@@ -24,10 +24,15 @@ async def admin_users_page(
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_admin),
 ):
+    from app.db.redis import get_online_user_ids
     users = await auth_service.list_users(db)
     teams = await _list_teams(db)
+    try:
+        online_ids = await get_online_user_ids()
+    except Exception:
+        online_ids = set()
     return templates.TemplateResponse(
-        request, "admin/users.html", {"users": users, "current_user": current_user, "teams": teams}
+        request, "admin/users.html", {"users": users, "current_user": current_user, "teams": teams, "online_ids": online_ids}
     )
 
 
@@ -82,19 +87,41 @@ async def create_user(
     password: str = Form(...),
     role: str = Form("user"),
     email: str = Form(""),
+    team: str = Form(""),
     db: AsyncSession = Depends(get_db),
     current_user=Depends(require_admin),
 ):
     existing = await auth_service.get_user_by_username(db, username)
     if existing:
         users = await auth_service.list_users(db)
+        teams = await _list_teams(db)
         return templates.TemplateResponse(
             request,
             "admin/users.html",
-            {"users": users, "current_user": current_user, "error": f"Username '{username}' already exists"},
+            {"users": users, "current_user": current_user, "teams": teams, "online_ids": set(), "error": f"Username '{username}' already exists"},
             status_code=400,
         )
-    await auth_service.create_user(db, username, password, role, email or None)
+    user = await auth_service.create_user(db, username, password, role, email or None)
+    if team:
+        user.team = team
+        await db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@router.post("/{user_id}/display-name")
+async def set_display_name(
+    user_id: str,
+    display_name: str = Form(""),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    from sqlalchemy import select
+    from app.models.user import User
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if user:
+        user.display_name = display_name.strip() or None
+        await db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
 
@@ -157,6 +184,23 @@ async def toggle_delete_own(
     return RedirectResponse(url="/admin/users", status_code=303)
 
 
+@router.post("/{user_id}/toggle-manage-robots")
+async def toggle_manage_robots(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    from sqlalchemy import select
+    from app.models.user import User
+    uid = uuid.UUID(user_id)
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user:
+        user.can_manage_robots = not user.can_manage_robots
+        await db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
 @router.post("/{user_id}/toggle-nas")
 async def toggle_nas(
     user_id: str,
@@ -170,6 +214,25 @@ async def toggle_nas(
     user = result.scalar_one_or_none()
     if user:
         user.can_upload_to_nas = not user.can_upload_to_nas
+        await db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@router.post("/{user_id}/password")
+async def change_password(
+    user_id: str,
+    password: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    from sqlalchemy import select
+    from app.models.user import User
+    from app.services.auth_service import hash_password
+    uid = uuid.UUID(user_id)
+    result = await db.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if user and password.strip():
+        user.hashed_password = hash_password(password.strip())
         await db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 

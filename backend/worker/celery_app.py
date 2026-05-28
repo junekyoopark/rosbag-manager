@@ -6,7 +6,8 @@ celery_app = Celery(
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
     include=["worker.tasks.convert", "worker.tasks.introspect",
-             "worker.tasks.nas_upload", "worker.tasks.nas_import"],
+             "worker.tasks.nas_upload", "worker.tasks.nas_import",
+             "worker.tasks.sftp_import"],
 )
 
 celery_app.conf.update(

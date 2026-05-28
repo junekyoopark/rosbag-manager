@@ -7,7 +7,7 @@
      {% endif %}>
 
     <a href="/bags/{{ bag.id }}" class="bag-card__thumb-link"
-       {% if bag.status != 'ready' %}onclick="return false;" style="cursor:default"{% endif %}>
+       {% if bag.status == 'ready' %}onclick="event.preventDefault(); openBagViewerModal('{{ bag.id }}', '{{ bag.name }}'); return false;"{% else %}onclick="return false;" style="cursor:default"{% endif %}>
         <div class="bag-card__thumb">
             {% if bag.thumbnail_path %}
                 <img src="/thumbnails/{{ bag.id }}.jpg" alt="{{ bag.name }}" loading="lazy"
@@ -39,8 +39,8 @@
 
     <div class="bag-card__info">
         <div class="bag-card__header">
-            <span class="badge badge--{{ bag.bag_format }}">{{ bag.bag_format }}</span>
-            <span class="status-pill status-pill--{{ bag.status }}">{{ bag.status }}</span>
+            <span style="font-size:11px;color:var(--text-muted)">{{ bag.bag_format }}</span>
+            {% if bag.status != 'ready' %}<span class="status-pill status-pill--{{ bag.status }}">{{ bag.status }}</span>{% endif %}
             {% for t in (bag.team or []) %}<span class="team-pill">{{ t }}</span>{% endfor %}
             {% if bag.status == 'ready' and not bag.published %}
             <span class="status-pill status-pill--draft">draft</span>

@@ -63,3 +63,24 @@ async def serve_temp_rrd(file_id: str):
 async def viewer_page(bag_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     bag = await get_bag(db, bag_id)
     return templates.TemplateResponse(request, "viewer.html", {"bag": bag})
+
+
+@router.get("/{bag_id}/data")
+async def viewer_data(bag_id: str, db: AsyncSession = Depends(get_db)):
+    from fastapi.responses import JSONResponse
+    bag = await get_bag(db, bag_id)
+    if not bag:
+        raise HTTPException(404, "Bag not found")
+    rrd_url = ""
+    if bag.status == "ready" and bag.rrd_url:
+        rrd_url = bag.rrd_url.split("/rrd/").pop() if "/rrd/" in bag.rrd_url else bag.rrd_url
+    return JSONResponse({
+        "id": str(bag.id),
+        "name": bag.name,
+        "description": bag.description,
+        "status": bag.status,
+        "rrd_url": rrd_url,
+        "tags": bag.tags or [],
+        "team": bag.team or [],
+        "job_error": getattr(bag.job, "error_message", "") if hasattr(bag, "job") else "",
+    })

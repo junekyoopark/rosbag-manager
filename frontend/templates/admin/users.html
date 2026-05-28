@@ -152,7 +152,8 @@
 {% endblock %}
 
 {% block nav_extra %}
-<a href="/admin/users" class="btn btn--secondary">Admin</a>
+<a href="/admin/users" class="btn btn--secondary">Users</a>
+<a href="/admin/robots" class="btn btn--secondary">Robots</a>
 <form action="/auth/logout" method="post" style="display:inline">
     <button type="submit" class="btn btn--secondary">Logout</button>
 </form>
@@ -173,14 +174,17 @@
             <thead>
                 <tr>
                     <th>Username</th>
+                    <th>Name</th>
                     <th>Email</th>
                     <th>Role</th>
                     <th>Team</th>
                     <th>NAS upload</th>
                     <th>NAS import</th>
                     <th>Del own bags</th>
+                    <th>Robots</th>
                     <th>Status</th>
                     <th>Created</th>
+                    <th>Last login</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -188,8 +192,29 @@
             {% for u in users %}
             <tr>
                 <td>
-                    {{ u.username }}
+                    <span style="display:inline-flex;align-items:center;gap:6px">
+                        {% if u.id | string in online_ids %}
+                        <span title="Online (active in last 5 min)"
+                              style="width:8px;height:8px;border-radius:50%;background:#16a34a;flex-shrink:0;display:inline-block"></span>
+                        {% else %}
+                        <span style="width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0;display:inline-block"></span>
+                        {% endif %}
+                        {{ u.username }}
+                    </span>
                     {% if u.id == current_user.id %}<span style="font-size:11px;color:var(--text-muted)"> (you)</span>{% endif %}
+                </td>
+                <td>
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/display-name"
+                          style="display:flex;gap:5px;align-items:center">
+                        <input type="text" name="display_name" value="{{ u.display_name or '' }}"
+                               placeholder="—"
+                               style="padding:3px 7px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);outline:none;width:110px">
+                        <button type="submit" class="btn btn--secondary btn--sm">Save</button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:13px;color:var(--text-muted)">{{ u.display_name or '—' }}</span>
+                    {% endif %}
                 </td>
                 <td>{{ u.email or '—' }}</td>
                 <!-- Role: click badge to change inline -->
@@ -266,6 +291,20 @@
                     {% endif %}
                 </td>
                 <td>
+                    {% if u.role == 'admin' %}
+                    <span style="font-size:11px;color:var(--text-muted)">always</span>
+                    {% elif u.id != current_user.id %}
+                    <form method="post" action="/admin/users/{{ u.id }}/toggle-manage-robots" style="display:contents">
+                        <button type="submit" class="btn btn--sm {{ 'btn--primary' if u.can_manage_robots else '' }}"
+                                {% if not u.can_manage_robots %}style="color:var(--accent-error)"{% endif %}>
+                            {{ '✓' if u.can_manage_robots else '✕' }}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:11px;color:var(--text-muted)">—</span>
+                    {% endif %}
+                </td>
+                <td>
                     {% if u.is_active %}
                     <span class="status-pill status-pill--ready">Active</span>
                     {% else %}
@@ -273,6 +312,15 @@
                     {% endif %}
                 </td>
                 <td>{{ u.created_at | timeago }}</td>
+                <td>
+                    {% if u.last_login_at %}
+                    <span title="{{ u.last_login_at.strftime('%Y-%m-%d %H:%M UTC') }}">{{ u.last_login_at | timeago }}</span>
+                    <br>
+                    <span style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)" title="{{ u.last_login_ua or '' }}">{{ u.last_login_ip or '—' }}</span>
+                    {% else %}
+                    <span style="color:var(--text-muted)">—</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if u.id != current_user.id %}
                     <div class="td-actions">
@@ -282,6 +330,15 @@
                                 {{ 'Deactivate' if u.is_active else 'Activate' }}
                             </button>
                         </form>
+                        <details style="display:contents">
+                            <summary class="btn btn--secondary btn--sm" style="cursor:pointer;list-style:none">Reset pw</summary>
+                            <form method="post" action="/admin/users/{{ u.id }}/password"
+                                  style="display:flex;gap:6px;align-items:center;margin-top:6px">
+                                <input type="password" name="password" required placeholder="New password"
+                                       style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);outline:none;width:140px">
+                                <button type="submit" class="btn btn--primary btn--sm">Set</button>
+                            </form>
+                        </details>
                         <form method="post" action="/admin/users/{{ u.id }}/delete" style="display:contents"
                               onsubmit="return confirm('Delete user \'{{ u.username }}\'? This cannot be undone.')">
                             <button type="submit" class="btn btn--danger btn--sm">Delete</button>
@@ -345,6 +402,15 @@
                     <option value="viewer" selected>VIEWER</option>
                     <option value="user">USER</option>
                     <option value="admin">ADMIN</option>
+                </select>
+            </div>
+            <div class="form-field">
+                <label>Team (optional)</label>
+                <select name="team">
+                    <option value="">—</option>
+                    {% for t in teams %}
+                    <option value="{{ t }}">{{ t }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <div class="create-form__submit">

@@ -15,10 +15,12 @@ from app.routers import bags, jobs, viewer, health
 from app.routers import auth as auth_router
 from app.routers import admin as admin_router
 from app.routers import nas as nas_router
+from app.routers import robots as robots_router
+from app.routers import layouts as layouts_router
 from app.config import settings
 
 # Paths that don't require authentication
-_PUBLIC_PREFIXES = ("/login", "/auth/", "/static/", "/healthz", "/favicon", "/bags/local/temp-rrd/")
+_PUBLIC_PREFIXES = ("/login", "/setup", "/auth/", "/static/", "/healthz", "/favicon", "/bags/local/temp-rrd/")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -31,11 +33,16 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if user_id_str:
             from app.db.session import AsyncSessionLocal
             from app.services.auth_service import get_user_by_id
+            from app.db.redis import mark_online
             try:
                 async with AsyncSessionLocal() as db:
                     user = await get_user_by_id(db, uuid.UUID(user_id_str))
                     if user and user.is_active:
                         request.state.current_user = user
+                        try:
+                            await mark_online(user_id_str)
+                        except Exception:
+                            pass  # never break a request over Redis
                     else:
                         request.session.pop("user_id", None)
             except Exception:
@@ -84,6 +91,9 @@ app.include_router(viewer.router, prefix="/bags", tags=["viewer"])
 app.include_router(auth_router.router, tags=["auth"])
 app.include_router(admin_router.router, prefix="/admin/users", tags=["admin"])
 app.include_router(nas_router.router, prefix="/nas", tags=["nas"])
+app.include_router(robots_router.admin_router, prefix="/robots", tags=["robots"])
+app.include_router(robots_router.live_router, tags=["live"])
+app.include_router(layouts_router.router, tags=["layouts"])
 
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 
@@ -158,6 +168,8 @@ def format_ros_time(ns: int) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+templates.env.globals["lichtblick_url"] = "/lichtblick/"
+
 templates.env.filters["format_duration"] = format_duration
 templates.env.filters["format_bytes"] = format_bytes
 templates.env.filters["timeago"] = timeago
@@ -171,6 +183,9 @@ bags.templates = templates
 auth_router.templates = templates
 admin_router.templates = templates
 nas_router.templates = templates
+robots_router.admin_router.templates = None  # set below
+robots_router.live_router.templates = None   # set below
+robots_router.templates = templates
 
 
 def _is_api(request: Request) -> bool:

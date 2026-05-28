@@ -33,7 +33,9 @@ RUN pip install --no-cache-dir \
     "bcrypt>=4.0" \
     "itsdangerous>=2.1" \
     "httpx>=0.27" \
-    "cryptography>=42.0"
+    "cryptography>=42.0" \
+    "websockets>=12.0" \
+    "paramiko>=3.0"
 
 WORKDIR /app
 

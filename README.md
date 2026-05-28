@@ -49,11 +49,14 @@ git clone https://github.com/junekyoopark/rosbag-manager.git
 cd rosbag-manager
 cp .env.example .env
 # Edit .env — at minimum set POSTGRES_PASSWORD, SECRET_KEY, PUBLIC_HOST
-docker compose up --build -d
+docker compose build
+docker compose up -d
 docker compose exec backend alembic upgrade head
 ```
 
 Open `http://<PUBLIC_HOST>` in your browser and log in with the admin credentials set in `.env`.
+
+> **Rebuilding without internet** (images already built once): `docker compose build --no-pull && docker compose up -d`
 
 ## HTTPS Deployment (public internet)
 
@@ -97,11 +100,26 @@ On subsequent restarts, nginx automatically detects the certificate and uses HTT
 | 443  | nginx — HTTPS |
 | 5555 | Flower — Celery task monitor |
 
+## Live View (Lichtblick)
+
+The stack includes a self-hosted [Lichtblick](https://github.com/lichtblick-suite/lichtblick) instance (open-source Foxglove Studio fork) accessible at `http://<PUBLIC_HOST>/lichtblick/`.
+
+Use it to visualize live ROS topics from a robot running [foxglove-bridge](https://github.com/foxglove/ros-foxglove-bridge):
+
+```bash
+# On the robot (ROS 2):
+ros2 run foxglove_bridge foxglove_bridge
+```
+
+Then in Lichtblick → **Open connection** → WebSocket → `ws://<robot-ip>:8765`.
+
+The **Live View** button in the navbar opens Lichtblick in a new tab.
+
 ## Updating
 
 ```bash
 git pull
-docker compose build
+docker compose build --no-pull
 docker compose up -d
 docker compose exec backend alembic upgrade head
 ```

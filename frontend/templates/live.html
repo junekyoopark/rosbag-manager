@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% block title %}Live View — ROSBAG Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.live-page { max-width: 780px; margin: 40px auto; padding: 0 24px 64px; }
+.live-page h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+.live-page .subtitle { font-size: 13px; color: var(--text-muted); margin-bottom: 32px; }
+
+.network-section { margin-bottom: 32px; }
+.network-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-muted);
+    margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.network-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.robot-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 14px 16px;
+    margin-bottom: 8px; display: flex; align-items: center; gap: 14px;
+}
+.robot-card__dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.robot-card__dot--online  { background: #16a34a; box-shadow: 0 0 0 3px #dcfce7; }
+.robot-card__dot--offline { background: var(--border); }
+.robot-card__info { flex: 1; min-width: 0; }
+.robot-card__name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.robot-card__urls { margin-top: 5px; display: flex; flex-direction: column; gap: 2px; }
+.robot-card__url-row { display: flex; align-items: baseline; gap: 6px; }
+.robot-card__url-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); width: 50px; flex-shrink: 0; }
+.robot-card__url-val { font-size: 11px; font-family: var(--font-mono); color: var(--text-secondary); }
+.proxy-url { color: var(--accent-primary) !important; }
+.robot-card__actions { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+
+.add-robot-form {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 18px 20px;
+    display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;
+}
+.add-robot-form .ff { display: flex; flex-direction: column; gap: 4px; }
+.add-robot-form label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.add-robot-form input, .add-robot-form select {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg-elevated); color: var(--text-primary); font-size: 13px; outline: none;
+}
+
+/* Import modal */
+.modal-backdrop { position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000; }
+.modal-backdrop.hidden { display:none; }
+.robot-import-modal { background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);width:600px;max-width:96vw;max-height:86vh;display:flex;flex-direction:column; }
+.modal__header { display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border); }
+.modal__title { font-size:15px;font-weight:700;color:var(--text-primary); }
+.modal__close { background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1; }
+.modal__body { flex:1;overflow-y:auto;padding:20px; }
+
+.modal__field { margin-bottom:14px; }
+.modal__label { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:5px; }
+.modal__input {
+    width:100%;box-sizing:border-box;padding:8px 10px;
+    border:1px solid var(--border);border-radius:var(--radius-md);
+    background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none;
+}
+
+.file-browser { border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden; }
+.file-breadcrumb { padding:8px 12px;background:var(--bg-elevated);border-bottom:1px solid var(--border);font-size:12px;font-family:var(--font-mono);color:var(--text-muted); }
+.file-list { max-height:260px;overflow-y:auto; }
+.file-item {
+    display:flex;align-items:center;gap:10px;padding:8px 12px;
+    font-size:13px;cursor:pointer;border-bottom:1px solid var(--border);
+}
+.file-item:last-child { border-bottom:none; }
+.file-item:hover { background:var(--bg-elevated); }
+.file-item.selected { background:#eff6ff;color:#1d4ed8; }
+.file-item__icon { font-size:14px;flex-shrink:0; }
+.file-item__name { flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.file-item__size { font-size:11px;color:var(--text-muted);flex-shrink:0; }
+.file-item--up { color:var(--text-muted);font-style:italic; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="live-page">
+    <h1>Live View</h1>
+    <p class="subtitle">
+        Connect Lichtblick to a robot via this server.
+        {% if can_manage %}
+        <a href="/robots" style="color:var(--accent-primary)">Manage networks →</a>
+        {% endif %}
+    </p>
+
+    <!-- Layout selector -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 16px;flex-wrap:wrap">
+        <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Layout</span>
+        <select id="layout-select"
+                style="padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none;min-width:180px">
+            <option value="">Default (no layout)</option>
+            {% for l in layouts %}
+            <option value="{{ l.id }}">{{ l.name }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn--secondary btn--sm" onclick="document.getElementById('layout-upload-panel').style.display=document.getElementById('layout-upload-panel').style.display?'':'flex'">
+            + Upload layout
+        </button>
+        <div id="layout-upload-panel" style="display:none;gap:8px;align-items:flex-end;flex-wrap:wrap;width:100%;margin-top:8px">
+            <form method="post" action="/api/layouts" enctype="multipart/form-data"
+                  style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+                <div style="display:flex;flex-direction:column;gap:4px">
+                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Name</label>
+                    <input type="text" name="name" placeholder="e.g. Drone default"
+                           style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none;min-width:160px">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">JSON file</label>
+                    <input type="file" name="file" accept=".json" required
+                           style="font-size:13px;color:var(--text-primary)">
+                </div>
+                <button type="submit" class="btn btn--primary btn--sm" style="margin-bottom:1px">Upload</button>
+            </form>
+            {% if layouts %}
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;width:100%">
+                {% for l in layouts %}
+                <span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:999px;padding:3px 10px;font-size:12px">
+                    {{ l.name }}
+                    <form method="post" action="/api/layouts/{{ l.id }}/delete" style="display:contents"
+                          onsubmit="return confirm('Delete layout \'{{ l.name }}\'?')">
+                        <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:14px;line-height:1;padding:0" title="Delete">×</button>
+                    </form>
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% set _user = request.state.current_user if request.state is defined else none %}
+    {% set all_count = (networks | sum(attribute='_visible_robots', start=[]) | list | length) + (ungrouped | length) %}
+
+    {% if all_count > 0 %}
+
+    {% for net in networks %}
+    {% if net._visible_robots %}
+    <div class="network-section">
+        <div class="network-label">{{ net.name }}</div>
+        {% for r in net._visible_robots %}
+        {% include '_robot_card.html' %}
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    {% if ungrouped %}
+    <div class="network-section">
+        <div class="network-label">Ungrouped</div>
+        {% for r in ungrouped %}
+        {% include '_robot_card.html' %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:13px 16px;font-size:13px;color:var(--text-muted);margin-bottom:32px">
+        <strong style="color:var(--text-primary)">How to connect:</strong>
+        Open Lichtblick → <strong>Open connection</strong> → <strong>Foxglove WebSocket</strong> → paste a URL above.
+        Use <strong>Direct</strong> if on the same LAN as the robot, or <strong>Proxy</strong> for remote access via this server.
+    </div>
+
+    {% else %}
+    <div style="text-align:center;padding:48px 24px;color:var(--text-muted);font-size:14px">
+        No robots available.
+        {% if can_manage %}
+        <br><a href="/robots" style="color:var(--accent-primary)">Add robots in the management panel.</a>
+        {% else %}
+        Ask an admin to add robots and grant you access.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if can_manage %}
+    <div>
+        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:12px">Add robot</div>
+        <form method="post" action="/live/robots/create" class="add-robot-form">
+            <div class="ff">
+                <label>Name</label>
+                <input type="text" name="name" placeholder="e.g. Drone-01" required autocomplete="off" style="min-width:130px">
+            </div>
+            <div class="ff">
+                <label>WebSocket URL</label>
+                <input type="text" name="ws_url" placeholder="ws://192.168.1.50:8765" required autocomplete="off" style="min-width:210px">
+            </div>
+            {% if networks %}
+            <div class="ff">
+                <label>Network</label>
+                <select name="network_id" style="min-width:130px">
+                    <option value="">— ungrouped —</option>
+                    {% for net in networks %}
+                    <option value="{{ net.id }}">{{ net.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <button type="submit" class="btn btn--primary" style="margin-bottom:1px">Add</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Robot import modal -->
+<div id="robot-import-modal" class="modal-backdrop hidden" onclick="if(event.target===this)closeRobotImport()">
+    <div class="robot-import-modal">
+        <div class="modal__header">
+            <span class="modal__title" id="import-modal-title">Import from Robot</span>
+            <button class="modal__close" onclick="closeRobotImport()">✕</button>
+        </div>
+        <div class="modal__body">
+            <!-- Phase 1: credentials + browse -->
+            <div id="import-browse-phase">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+                    <div class="modal__field">
+                        <div class="modal__label">SSH Username</div>
+                        <input type="text" id="ssh-user" class="modal__input" autocomplete="off" placeholder="ubuntu">
+                    </div>
+                    <div class="modal__field">
+                        <div class="modal__label">SSH Password</div>
+                        <input type="password" id="ssh-pass" class="modal__input" autocomplete="off">
+                    </div>
+                </div>
+                <button class="btn btn--secondary" onclick="connectSftp()" style="margin-bottom:16px">Connect</button>
+
+                <div id="sftp-browser" style="display:none">
+                    <div class="modal__label" style="margin-bottom:6px">Files</div>
+                    <div class="file-browser">
+                        <div class="file-breadcrumb" id="sftp-path">—</div>
+                        <div class="file-list" id="sftp-list"></div>
+                    </div>
+                    <div style="margin-top:10px;font-size:12px;color:var(--text-muted)">
+                        Click a file to select it. Click a folder to open it.
+                        <span id="sftp-selected-name" style="color:var(--accent-primary);font-weight:600"></span>
+                    </div>
+                </div>
+                <div id="sftp-error" style="font-size:13px;color:var(--accent-error);margin-top:8px;display:none"></div>
+            </div>
+
+            <!-- Phase 2: import options -->
+            <div id="import-options-phase" style="display:none">
+                <div class="modal__field">
+                    <div class="modal__label">File</div>
+                    <div id="import-file-label" style="font-size:13px;font-family:var(--font-mono);color:var(--text-primary);padding:8px 10px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md)"></div>
+                </div>
+                <div class="modal__field">
+                    <div class="modal__label">Bag name (optional)</div>
+                    <input type="text" id="import-name" class="modal__input" placeholder="Leave blank to use filename">
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+                    <button class="btn btn--secondary" onclick="showBrowsePhase()">← Back</button>
+                    <button class="btn btn--primary" onclick="startImport()">Import</button>
+                </div>
+            </div>
+
+            <!-- Phase 3: progress -->
+            <div id="import-progress-phase" style="display:none">
+                <div id="import-progress-msg" style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">Connecting…</div>
+                <div style="background:var(--bg-elevated);border-radius:var(--radius-md);height:6px;overflow:hidden">
+                    <div id="import-progress-bar" style="height:100%;background:var(--accent-primary);width:0%;transition:width 0.3s"></div>
+                </div>
+                <div id="import-progress-done" style="display:none;margin-top:16px">
+                    <p style="font-size:13px;color:#16a34a;font-weight:600">Transfer complete — conversion queued.</p>
+                    <div style="display:flex;gap:8px;margin-top:12px">
+                        <button class="btn btn--secondary" onclick="closeRobotImport()">Close</button>
+                        <a href="/" class="btn btn--primary">Go to library</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/js/robot_import.js"></script>
+<script>
+const wsBase = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + location.host;
+
+function openLichtblick(robotId, robotLayoutId) {
+    const wsUrl = wsBase + '/ws/robot/' + robotId;
+    const layoutId = robotLayoutId || document.getElementById('layout-select').value;
+    let url = '/lichtblick-launch?ds=foxglove-websocket&ds.url=' + encodeURIComponent(wsUrl);
+    if (layoutId) url += '&layout_id=' + layoutId;
+    window.open(url, '_blank');
+}
+
+function updateRobotLayout(robotId, layoutId) {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = `/robots/${robotId}/update-layout`;
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'layout_id';
+    input.value = layoutId;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function copyText(text, btn) {
+    navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+
+// Set proxy URLs
+document.querySelectorAll('[data-proxy-robot]').forEach(el => {
+    el.textContent = wsBase + '/ws/robot/' + el.dataset.proxyRobot;
+});
+</script>
+{% endblock %}

@@ -94,6 +94,10 @@ services:
     depends_on:
       - redis
 
+  lichtblick:
+    image: ghcr.io/lichtblick-suite/lichtblick
+    restart: unless-stopped
+
   nginx:
     build:
       context: nginx/
@@ -103,12 +107,14 @@ services:
       # - "443:443"
     environment:
       DOMAIN: ${DOMAIN:-localhost}
+      ROBOT_WS_HOST: ${ROBOT_WS_HOST:-}
     volumes:
       - bag_data:/data:ro
       - ./data/certbot/conf:/etc/letsencrypt:ro
       - ./data/certbot/www:/var/www/certbot:ro
     depends_on:
       - backend
+      - lichtblick
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s

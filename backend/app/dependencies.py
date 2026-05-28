@@ -32,3 +32,9 @@ async def require_uploader(user=Depends(get_current_user)):
     if user is None or user.role not in ("admin", "user"):
         raise HTTPException(status_code=403, detail="Upload access required")
     return user
+
+
+async def require_robot_manager(user=Depends(get_current_user)):
+    if user is None or not (user.role == "admin" or getattr(user, "can_manage_robots", False)):
+        raise HTTPException(status_code=403, detail="Robot management access required")
+    return user

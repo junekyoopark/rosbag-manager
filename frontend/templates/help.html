@@ -310,6 +310,7 @@ code {
   <!-- Tab bar -->
   <div class="info-tabs">
     <button class="info-tab active" onclick="switchTab('usage', this)">Usage</button>
+    <button class="info-tab"        onclick="switchTab('live', this)">Live View</button>
     <button class="info-tab"        onclick="switchTab('setup', this)">Server Setup</button>
   </div>
 
@@ -352,8 +353,9 @@ code {
           <div class="step__num">4</div>
           <div class="step__body">
             <strong>View in the browser</strong>
-            <p>Click any card in the library to open the Rerun web viewer.
-              Use the timeline at the bottom to scrub through time.
+            <p>Click any bag card in the library to open the Rerun web viewer in a modal.
+              The Rerun viewer stays loaded as you browse and switch between bags — no reload lag.
+              A progress bar shows the viewer initializing. Use the timeline at the bottom to scrub through time.
               Switch between the <strong>3D</strong>, <strong>2D</strong>, and
               <strong>Time series</strong> panels as needed.</p>
           </div>
@@ -501,6 +503,250 @@ code {
     </div>
 
   </div>{# /pane-usage #}
+
+  <!-- ══════════════ TAB: LIVE VIEW ══════════════ -->
+  <div id="pane-live" class="info-pane">
+
+    <div class="info-section">
+      <div class="info-section__title">Overview</div>
+      <div class="tips">
+        <div class="tip tip--info">
+          <strong>Live View</strong> lets you stream live ROS topics from a robot directly in your browser via
+          <strong>Lichtblick</strong> — an open-source Foxglove Studio fork.
+          The server acts as a WebSocket relay, so you can monitor a robot even from a different network.
+        </div>
+      </div>
+      <div style="margin-top:16px;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:16px 20px;font-size:13px;font-family:var(--font-mono);line-height:2;color:var(--text-secondary)">
+        Robot (foxglove-bridge :8765)
+        <span style="color:var(--accent-primary)">→</span> Server nginx
+        <span style="color:var(--accent-primary)">→</span> Lichtblick in browser
+      </div>
+    </div>
+
+    <!-- ── Robot side ── -->
+    <div class="info-section">
+      <div class="info-section__title">Step 1 — Set up the robot</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
+        The robot needs <strong>foxglove-bridge</strong> running. It listens on port <code>8765</code>
+        and does not need to know anything about this server. Install it once per robot.
+      </p>
+
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:8px">ROS 2</div>
+      <div class="code-block"><pre><span class="comment"># Install (once)</span>
+<span class="cmd">sudo apt install</span> ros-${ROS_DISTRO}-foxglove-bridge
+
+<span class="comment"># Launch</span>
+<span class="cmd">ros2 run</span> foxglove_bridge foxglove_bridge</pre></div>
+
+      <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin:16px 0 8px">ROS 1</div>
+      <div class="code-block"><pre><span class="comment"># Install rosbridge (once)</span>
+<span class="cmd">sudo apt install</span> ros-${ROS_DISTRO}-rosbridge-suite
+
+<span class="comment"># Launch  (default port: 9090 — use 8765 to match the default config)</span>
+<span class="cmd">roslaunch</span> rosbridge_server rosbridge_websocket.launch <span class="flag">port:=8765</span></pre></div>
+
+      <div class="tips" style="margin-top:12px">
+        <div class="tip">
+          <strong>Firewall</strong> — make sure port <code>8765</code> is open on the robot for incoming TCP connections from the server's IP.
+          On Ubuntu: <code>sudo ufw allow 8765/tcp</code>
+        </div>
+        <div class="tip">
+          <strong>Auto-start on boot</strong> — add the launch command to a <code>systemd</code> service or ROS launch file so
+          foxglove-bridge starts automatically when the robot powers on.
+        </div>
+        <div class="tip tip--info">
+          <strong>Custom port</strong> — if you use a different port, enter the full WebSocket URL when adding the robot:
+          <code>ws://192.168.1.50:9090</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Server side ── -->
+    <div class="info-section">
+      <div class="info-section__title">Step 2 — Add the robot in the server</div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
+        Users with <strong>Robot Management</strong> permission (or admins) can add robots via the
+        <a href="/robots" style="color:var(--accent-primary)">Robot Management</a> page or directly from
+        <a href="/live" style="color:var(--accent-primary)">Live View</a>.
+      </p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__body">
+            <strong>Create a network</strong>
+            <p>Go to <a href="/robots" style="color:var(--accent-primary)">Robot Management</a> and add a network
+              (e.g. <em>Lab</em>, <em>Field Site A</em>). Set the <strong>scan subnet</strong> to your LAN range
+              (e.g. <code>192.168.1.0/24</code>).</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__body">
+            <strong>Find robots with LAN scan</strong>
+            <p>Click <strong>Scan LAN</strong> next to the network. The server scans the subnet for hosts
+              with port 8765 open (takes ~1 second). Click <strong>Use</strong> next to any found robot
+              to pre-fill its WebSocket URL, then give it a name and click <strong>Add robot</strong>.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2b</div>
+          <div class="step__body">
+            <strong>Or add manually</strong>
+            <p>If the robot is not on the same subnet as the server (e.g. it's on Tailscale), enter the
+              URL directly: <code>ws://100.x.x.x:8765</code> (Tailscale IP) or
+              <code>ws://robot-hostname:8765</code>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Lichtblick layouts ── -->
+    <div class="info-section">
+      <div class="info-section__title">Step 3 — Manage Lichtblick layouts</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__body">
+            <strong>Upload a layout (optional)</strong>
+            <p>Click the <strong>+ Upload layout</strong> button on the Live View page. Select a Lichtblick layout
+              JSON file (exported from Lichtblick's Blueprint panel). Give it a name and upload.
+              Layouts are shared across all users and robots.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__body">
+            <strong>Set a default layout per robot</strong>
+            <p>If you have robot management permission, a layout dropdown appears on each robot's card.
+              Select a layout to set it as that robot's default. When you open Lichtblick from that robot's button,
+              the layout loads automatically. Leave it as "Default layout" to use the global selector.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__body">
+            <strong>Or select at open time</strong>
+            <p>Before clicking a robot's <strong>Lichtblick</strong> button, use the <strong>Layout</strong> dropdown
+              at the top of the Live View page to pick a layout for that session. If the robot has a default layout set,
+              it takes priority.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Connecting ── -->
+    <div class="info-section">
+      <div class="info-section__title">Step 4 — Connect from Lichtblick</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step__num">1</div>
+          <div class="step__body">
+            <strong>Open Live View</strong>
+            <p>Click <strong>Live View</strong> in the navbar. Registered robots appear grouped by network.
+              A green dot means the robot is reachable from the server right now.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">2</div>
+          <div class="step__body">
+            <strong>Copy the right URL</strong>
+            <p>
+              <strong>Copy direct</strong> — use when your browser is on the <em>same LAN as the robot</em>.
+              Lichtblick connects straight to <code>ws://robot-ip:8765</code>, bypassing the server entirely.<br><br>
+              <strong>Copy proxy</strong> — use when accessing remotely (e.g. via Tailscale Funnel).
+              The server relays the WebSocket connection to the robot over its local network.
+            </p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step__num">3</div>
+          <div class="step__body">
+            <strong>Open Lichtblick and connect</strong>
+            <p>Click the robot's <strong>Lichtblick</strong> button to open Lichtblick in a new tab with the layout
+              already selected (if one is configured). Or manually:<br>
+              <strong>Open connection</strong> → <strong>Foxglove WebSocket</strong> → paste the copied URL → <strong>Open</strong>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Scenarios ── -->
+    <div class="info-section">
+      <div class="info-section__title">Connection scenarios</div>
+      <table class="formats-table">
+        <thead>
+          <tr><th>Your PC</th><th>Server</th><th>Robot</th><th>Use</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-family:inherit;font-size:13px">Same LAN as robot</td>
+            <td style="font-family:inherit;font-size:13px">Anywhere</td>
+            <td style="font-family:inherit;font-size:13px">Same LAN as PC</td>
+            <td style="font-family:inherit;font-size:13px"><strong>Direct</strong> — <code>ws://robot-ip:8765</code></td>
+          </tr>
+          <tr>
+            <td style="font-family:inherit;font-size:13px">Remote (internet)</td>
+            <td style="font-family:inherit;font-size:13px">Same LAN as robot</td>
+            <td style="font-family:inherit;font-size:13px">LAN (no internet needed)</td>
+            <td style="font-family:inherit;font-size:13px"><strong>Proxy</strong> — <code>wss://server/ws/robot/1</code></td>
+          </tr>
+          <tr>
+            <td style="font-family:inherit;font-size:13px">Same LAN as robot</td>
+            <td style="font-family:inherit;font-size:13px">Different network</td>
+            <td style="font-family:inherit;font-size:13px">Same LAN as PC</td>
+            <td style="font-family:inherit;font-size:13px"><strong>Direct</strong> — server proxy won't reach robot</td>
+          </tr>
+          <tr>
+            <td style="font-family:inherit;font-size:13px">Remote (internet)</td>
+            <td style="font-family:inherit;font-size:13px">Remote (internet)</td>
+            <td style="font-family:inherit;font-size:13px">Tailscale or VPN</td>
+            <td style="font-family:inherit;font-size:13px"><strong>Proxy</strong> — add robot with Tailscale IP <code>ws://100.x.x.x:8765</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── Troubleshooting ── -->
+    <div class="info-section">
+      <div class="info-section__title">Troubleshooting</div>
+      <div class="tips">
+        <div class="tip">
+          <strong>Robot shows offline (grey dot)</strong><br>
+          The server cannot reach port 8765 on the robot's IP. Check that foxglove-bridge is running,
+          the IP is correct, and port 8765 is not blocked by a firewall.
+          Try: <code>nc -zv &lt;robot-ip&gt; 8765</code> from the server host.
+        </div>
+        <div class="tip">
+          <strong>LAN scan finds nothing</strong><br>
+          Verify the scan subnet matches the robot's actual LAN range. The server container scans via
+          the host's network — if the subnet is wrong the scan hits the right IPs but nothing answers.
+          Also confirm foxglove-bridge is running on the robot before scanning.
+        </div>
+        <div class="tip">
+          <strong>Lichtblick connects but shows no data</strong><br>
+          The connection is established but no topics are publishing. Check that your ROS nodes
+          are running and publishing (<code>ros2 topic list</code>). Some topics only publish when
+          sensors are active (e.g. cameras, lidar).
+        </div>
+        <div class="tip">
+          <strong>Proxy URL fails from remote</strong><br>
+          The proxy requires the server to reach the robot. If the server moved to a different network
+          than the robot, the proxy can no longer relay — use Direct connection instead if your PC
+          is on the same LAN as the robot.
+        </div>
+        <div class="tip tip--warn">
+          <strong>wss:// vs ws://</strong><br>
+          When accessing this server over HTTPS (e.g. via Tailscale Funnel), the proxy URL uses
+          <code>wss://</code> (secure WebSocket). Browsers block mixed content, so you cannot use
+          an insecure <code>ws://</code> direct URL while on an HTTPS page — open Lichtblick in a
+          separate tab (it's served at <a href="/lichtblick/" style="color:var(--accent-primary)">/lichtblick/</a>)
+          where the direct URL will work.
+        </div>
+      </div>
+    </div>
+
+  </div>{# /pane-live #}
 
   <!-- ══════════════ TAB: SETUP ══════════════ -->
   <div id="pane-setup" class="info-pane">

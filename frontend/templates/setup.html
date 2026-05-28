@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup — ROSBAG Manager</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+<div style="max-width:400px;margin:80px auto;padding:0 24px">
+    <div style="margin-bottom:28px">
+        <h1 style="font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:6px">Welcome to ROSBAG Manager</h1>
+        <p style="font-size:13px;color:var(--text-muted)">Create your admin account to get started.</p>
+    </div>
+
+    {% if error %}
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:var(--radius-md);padding:10px 14px;font-size:13px;color:var(--accent-error);margin-bottom:16px">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/setup"
+          style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Username</label>
+            <input type="text" name="username" required autocomplete="username" autofocus
+                   style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Password</label>
+            <input type="password" name="password" required autocomplete="new-password" minlength="8"
+                   style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Confirm password</label>
+            <input type="password" name="confirm_password" required autocomplete="new-password" minlength="8"
+                   style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);font-size:13px;outline:none">
+        </div>
+        <button type="submit" class="btn btn--primary" style="margin-top:4px">Create admin account</button>
+    </form>
+</div>
+</body>
+</html>

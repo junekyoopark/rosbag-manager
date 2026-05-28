@@ -7,3 +7,17 @@
         <p>No bags found.</p>
     </div>
 {% endif %}
+
+{% set next_offset = offset + bags|length %}
+{% if next_offset < total %}
+<div id="load-more-wrap" hx-swap-oob="outerHTML" class="load-more-wrap">
+    <button class="btn btn--secondary"
+            hx-get="/api/bags/grid-partial"
+            hx-vals='{"offset": "{{ next_offset }}"}'
+            hx-include="#filter-status, #filter-format, #filter-drafts, #filter-team, #filter-tags, #filter-tag-mode, [name='q']"
+            hx-target="#bag-grid"
+            hx-swap="beforeend">Load more</button>
+</div>
+{% else %}
+<div id="load-more-wrap" hx-swap-oob="outerHTML"></div>
+{% endif %}

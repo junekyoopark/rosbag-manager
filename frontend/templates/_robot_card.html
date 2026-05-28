@@ -1,0 +1,31 @@
+<div class="robot-card">
+    <span class="robot-card__dot robot-card__dot--{{ 'online' if online[r.id] else 'offline' }}"
+          title="{{ 'Online' if online[r.id] else 'Offline' }}"></span>
+    <div class="robot-card__info">
+        <div class="robot-card__name">{{ r.name }}</div>
+        <div class="robot-card__urls">
+            <div class="robot-card__url-row">
+                <span class="robot-card__url-label">Direct</span>
+                <span class="robot-card__url-val">{{ r.ws_url }}</span>
+            </div>
+            <div class="robot-card__url-row">
+                <span class="robot-card__url-label">Proxy</span>
+                <span class="robot-card__url-val proxy-url" data-proxy-robot="{{ r.id }}">—</span>
+            </div>
+        </div>
+    </div>
+    <div class="robot-card__actions">
+        <button class="btn btn--secondary btn--sm" onclick="copyText('{{ r.ws_url }}', this)">Copy direct</button>
+        <button class="btn btn--secondary btn--sm" onclick="copyText(wsBase+'/ws/robot/{{ r.id }}', this)">Copy proxy</button>
+        <button class="btn btn--secondary btn--sm" onclick="openRobotImport({{ r.id }}, '{{ r.name }}')">Import</button>
+        <button class="btn btn--primary btn--sm" onclick="openLichtblick({{ r.id }}, {{ r.layout_id or 'null' }})">Lichtblick</button>
+        {% if can_manage %}
+        <select style="padding:4px 8px;font-size:12px;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;cursor:pointer" onchange="updateRobotLayout({{ r.id }}, this.value)">
+            <option value="">Default layout</option>
+            {% for l in layouts %}
+            <option value="{{ l.id }}" {% if r.layout_id == l.id %}selected{% endif %}>{{ l.name }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
+</div>

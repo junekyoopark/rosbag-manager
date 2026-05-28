@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}Robot Management — ROSBAG Manager{% endblock %}
+
+{% block extra_css %}
+<style>
+.admin-page { max-width: 960px; margin: 40px auto; padding: 0 24px 64px; }
+.admin-page h1 { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 32px; }
+
+.network-block { border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 20px; overflow: hidden; }
+.network-header { background: var(--bg-elevated); padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.network-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.network-body { padding: 0 16px 16px; }
+
+.robots-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.robots-table th { text-align: left; padding: 6px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.robots-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+.robots-table tr:last-child td { border-bottom: none; }
+.robots-table td:first-child { font-weight: 600; color: var(--text-primary); }
+
+.access-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 8px 2px 6px; font-size: 11px;
+    color: var(--text-secondary); margin: 2px;
+}
+.access-chip--creator { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.access-chip form { display: contents; }
+.access-chip button { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 13px; line-height: 1; padding: 0; }
+.access-chip button:hover { color: var(--accent-error); }
+
+.inline-form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.inline-form .ff { display: flex; flex-direction: column; gap: 4px; }
+.inline-form label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.inline-form input, .inline-form select {
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-md);
+    background: var(--bg-elevated); color: var(--text-primary); font-size: 13px; outline: none;
+}
+
+.scan-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 7px 10px; background: var(--bg-elevated);
+    border: 1px solid var(--border); border-radius: var(--radius-md);
+    margin-bottom: 6px; font-size: 12px; font-family: var(--font-mono);
+}
+.scan-item button { margin-left: auto; }
+
+.add-network-form { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; }
+</style>
+{% endblock %}
+
+{% block nav_extra %}
+{% set _u = request.state.current_user if request.state is defined else none %}
+{% if _u and _u.role == 'admin' %}
+<a href="/admin/users" class="btn btn--secondary">Users</a>
+{% endif %}
+<a href="/robots" class="btn btn--secondary">Robots</a>
+<form action="/auth/logout" method="post" style="display:inline">
+    <button type="submit" class="btn btn--secondary">Logout</button>
+</form>
+{% endblock %}
+
+{% macro robot_rows(robots, show_remove=true) %}
+{% for r in robots | sort(attribute='name') %}
+<tr>
+    <td>{{ r.name }}</td>
+    <td>
+        <form method="post" action="/robots/{{ r.id }}/update-url"
+              style="display:flex;gap:5px;align-items:center">
+            <input type="text" name="ws_url" value="{{ r.ws_url }}"
+                   style="padding:3px 7px;font-size:12px;font-family:var(--font-mono);border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);outline:none;width:220px">
+            <button type="submit" class="btn btn--secondary btn--sm">Save</button>
+        </form>
+    </td>
+    <td>
+        {% if online[r.id] %}<span style="color:#16a34a;font-size:12px">● Online</span>
+        {% else %}<span style="color:var(--text-muted);font-size:12px">○ Offline</span>{% endif %}
+    </td>
+    <td>
+        <!-- Access chips -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:2px;margin-bottom:6px">
+            {% for acc in robot_access[r.id] %}
+            {% set is_creator = (r.added_by_id and r.added_by_id == acc.user_id) %}
+            <span class="access-chip {{ 'access-chip--creator' if is_creator else '' }}">
+                {% set acc_user = all_users | selectattr('id', 'equalto', acc.user_id) | first %}
+                {{ (acc_user.display_name or acc_user.username) if acc_user else '?' }}
+                {% if is_creator %}<span style="font-size:10px;opacity:0.7">(owner)</span>{% endif %}
+                {% if not is_creator and (current_user.role == 'admin' or current_user.id == r.added_by_id) %}
+                <form method="post" action="/robots/{{ r.id }}/access/revoke">
+                    <input type="hidden" name="user_id" value="{{ acc.user_id }}">
+                    <button type="submit" title="Revoke access">×</button>
+                </form>
+                {% endif %}
+            </span>
+            {% endfor %}
+            <!-- Grant access form -->
+            {% if current_user.role == 'admin' or current_user.id == r.added_by_id %}
+            <form method="post" action="/robots/{{ r.id }}/access/grant"
+                  style="display:inline-flex;align-items:center;gap:4px;margin-left:4px">
+                <select name="user_id" required
+                        style="padding:2px 6px;font-size:11px;border:1px solid var(--border);border-radius:999px;background:var(--bg-elevated);color:var(--text-primary);outline:none">
+                    <option value="" disabled selected>Select user…</option>
+                    {% for u in all_users %}
+                    {% if u.id != r.added_by_id and (robot_access[r.id] | selectattr('user_id', 'equalto', u.id) | list | length == 0) %}
+                    <option value="{{ u.id }}">{{ u.display_name or u.username }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn--secondary btn--sm">+ Access</button>
+            </form>
+            {% endif %}
+        </div>
+    </td>
+    {% if show_remove %}
+    <td>
+        <form method="post" action="/robots/{{ r.id }}/delete" style="display:contents"
+              onsubmit="return confirm('Remove {{ r.name }}?')">
+            <button type="submit" class="btn btn--danger btn--sm">Remove</button>
+        </form>
+    </td>
+    {% endif %}
+</tr>
+{% endfor %}
+{% endmacro %}
+
+{% block content %}
+<div class="admin-page">
+    <h1>Robot Management</h1>
+
+    {% for net in networks %}
+    <div class="network-block">
+        <div class="network-header">
+            <span class="network-name">{{ net.name }}</span>
+            <form method="post" action="/robots/networks/{{ net.id }}/update-subnet"
+                  style="display:flex;gap:6px;align-items:center">
+                <input type="text" name="scan_subnet" value="{{ net.scan_subnet }}"
+                       placeholder="e.g. 192.168.1.0/24"
+                       style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-surface);color:var(--text-primary);outline:none;width:170px">
+                <button type="submit" class="btn btn--secondary btn--sm">Save subnet</button>
+            </form>
+            {% if net.scan_subnet %}
+            <button class="btn btn--secondary btn--sm" onclick="scanNetwork({{ net.id }}, '{{ net.scan_subnet }}')">Scan LAN</button>
+            {% endif %}
+            <form method="post" action="/robots/networks/{{ net.id }}/delete" style="margin-left:auto"
+                  onsubmit="return confirm('Delete network \'{{ net.name }}\'? Robots become ungrouped.')">
+                <button type="submit" class="btn btn--danger btn--sm">Delete network</button>
+            </form>
+        </div>
+
+        <div class="network-body">
+            {% if net.robots %}
+            <table class="robots-table">
+                <thead><tr><th>Name</th><th>WebSocket URL</th><th>Status</th><th>Access</th><th></th></tr></thead>
+                <tbody>{{ robot_rows(net.robots) }}</tbody>
+            </table>
+            {% else %}
+            <p style="font-size:13px;color:var(--text-muted);margin-top:12px">No robots yet. Add one below or scan.</p>
+            {% endif %}
+
+            <div id="scan-{{ net.id }}" style="display:none;margin-top:10px"></div>
+
+            <form method="post" action="/robots/create" class="inline-form">
+                <input type="hidden" name="network_id" value="{{ net.id }}">
+                <div class="ff"><label>Name</label>
+                    <input type="text" name="name" placeholder="e.g. Drone-01" required autocomplete="off" style="min-width:120px">
+                </div>
+                <div class="ff"><label>WebSocket URL</label>
+                    <input type="text" name="ws_url" id="ws-input-{{ net.id }}" placeholder="ws://192.168.x.x:8765" required autocomplete="off" style="min-width:220px">
+                </div>
+                <button type="submit" class="btn btn--primary btn--sm" style="margin-bottom:1px">Add robot</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if ungrouped %}
+    <div class="network-block" style="border-style:dashed">
+        <div class="network-header">
+            <span class="network-name" style="color:var(--text-muted)">Ungrouped</span>
+        </div>
+        <div class="network-body">
+            <table class="robots-table">
+                <thead><tr><th>Name</th><th>WebSocket URL</th><th>Status</th><th>Access</th><th></th></tr></thead>
+                <tbody>{{ robot_rows(ungrouped) }}</tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <div style="margin-top:32px">
+        <div style="font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:14px">Add network</div>
+        <form method="post" action="/robots/networks/create" class="inline-form add-network-form">
+            <div class="ff">
+                <label>Network name</label>
+                <input type="text" name="name" placeholder="e.g. Lab, Field Site A" required autocomplete="off" style="min-width:160px">
+            </div>
+            <div class="ff">
+                <label>Scan subnet (optional)</label>
+                <input type="text" name="scan_subnet" placeholder="192.168.1.0/24" autocomplete="off" style="min-width:180px">
+            </div>
+            <button type="submit" class="btn btn--primary" style="margin-bottom:1px">Add network</button>
+        </form>
+    </div>
+</div>
+
+<script>
+async function scanNetwork(networkId, subnet) {
+    const el = document.getElementById('scan-' + networkId);
+    const wsInput = document.getElementById('ws-input-' + networkId);
+    el.style.display = 'block';
+    el.innerHTML = '<p style="font-size:13px;color:var(--text-muted);margin:8px 0">Scanning ' + subnet + '… (~1s)</p>';
+    try {
+        const resp = await fetch('/robots/networks/' + networkId + '/scan');
+        const data = await resp.json();
+        if (data.error) {
+            el.innerHTML = '<p style="font-size:13px;color:var(--accent-error);margin:8px 0">' + data.error + '</p>';
+        } else if (data.length === 0) {
+            el.innerHTML = '<p style="font-size:13px;color:var(--text-muted);margin:8px 0">No robots found.</p>';
+        } else {
+            el.innerHTML = data.map(r =>
+                '<div class="scan-item"><span>' + r.ws_url + '</span>' +
+                '<button class="btn btn--primary btn--sm" onclick="prefill(' + networkId + ',\'' + r.ws_url + '\')">Use</button>' +
+                '</div>'
+            ).join('');
+        }
+    } catch(e) {
+        el.innerHTML = '<p style="font-size:13px;color:var(--accent-error);margin:8px 0">Scan failed: ' + e.message + '</p>';
+    }
+}
+
+function prefill(networkId, wsUrl) {
+    const input = document.getElementById('ws-input-' + networkId);
+    input.value = wsUrl;
+    input.focus();
+    input.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+</script>
+{% endblock %}
