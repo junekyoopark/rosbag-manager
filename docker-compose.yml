@@ -50,7 +50,7 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     volumes:
-      - bag_data:/data
+      - ${DATA_DIR:-./data}:/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -82,7 +82,7 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
     volumes:
-      - bag_data:/data
+      - ${DATA_DIR:-./data}:/data
     depends_on:
       - postgres
       - redis
@@ -120,7 +120,7 @@ services:
       DOMAIN: ${DOMAIN:-localhost}
       ROBOT_WS_HOST: ${ROBOT_WS_HOST:-}
     volumes:
-      - bag_data:/data:ro
+      - ${DATA_DIR:-./data}:/data:ro
       - ./data/certbot/conf:/etc/letsencrypt:ro
       - ./data/certbot/www:/var/www/certbot:ro
     depends_on:
@@ -143,9 +143,3 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  bag_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${DATA_DIR:-./data}

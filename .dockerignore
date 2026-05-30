@@ -1,0 +1,11 @@
+data/
+.env
+.env.*
+!.env.example
+screenshots/
+*.md
+.git/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.DS_Store

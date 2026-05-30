@@ -51,6 +51,7 @@ git clone https://github.com/junekyoopark/rosbag-manager.git
 cd rosbag-manager
 cp .env.example .env
 # Edit .env — set at minimum: POSTGRES_PASSWORD, SECRET_KEY, PUBLIC_HOST
+mkdir -p data
 docker compose build
 docker compose up -d
 docker compose exec backend alembic upgrade head
